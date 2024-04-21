@@ -11,3 +11,7 @@ Logger::Logger() {
 void Logger::log(std::string message) {
 	m_logFile << message << std::endl;
 }
+
+void Logger::closeLog() {
+	m_logFile.close();
+}
