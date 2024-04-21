@@ -14,6 +14,6 @@ extern bool isReady; //variabile usata per stabilire se il motore è pronto ad ac
 extern bool stop; //variabile che salva un eventuale comando di stop inviato dalla GUI, e che segnala al motore di smettere di pensare il prima 
 				  //possibile
 extern bool ponder; //se vero, il motore deve cercare in ponder mode
-extern int maxDepth;
-extern int maxNodes;
+extern int maxDepth; //se è un valore maggiore di 0, ovvero impostato dalla GUI, è la massima profondità di ricerca
+extern int maxNodes; //se è un valore maggiore di 0, è il numero massimo di nodi su cui effettuare una ricerca
 extern bool mate; //se vero, il motore deve andare alla ricerca di uno scacco matto

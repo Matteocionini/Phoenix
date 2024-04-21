@@ -7,8 +7,8 @@
 
 class uciHandler {
 public:
-	static void handle(std::string message);
-	static void closeLog();
+	static void handle(std::string message); //metodo principale della classe, che gestisce i messaggi in arrivo dalla GUI
+	static void closeLog(); //metodo che consente di chiudere il log, e quindi di salvare le comunicazioni avvenute durante la sessione di gioco
 	
 
 private:
