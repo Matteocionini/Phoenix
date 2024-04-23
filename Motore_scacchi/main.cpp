@@ -1,41 +1,29 @@
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <thread>
 
 #include "logger.h"
 #include "uciHandler.h"
 #include "engineUtils.h"
+#include "engine.h"
 
 //variabili globali condivise in tutto il programma
-bool debug = false;
-Board board = Board();
-std::mutex mtx;
+std::mutex mtxReady;
 bool isReady = true;
-bool stop = false;
-bool ponder = false;
-int maxDepth = -1;
-int maxNodes = -1;
-bool mate = false;
 
 int main(){
     std::ofstream log;
     std::string message = "";
-    uciHandler handler = uciHandler();
-    engineInit(true);
+    Engine::engineInit();
 
     std::ios_base::sync_with_stdio(false); //disabilita la sincronizzazione con le funzioni di I/O native di C per un considerevole miglioramento delle prestazioni
 
     while (message != "quit") {
         std::getline(std::cin, message);
-        handler.handle(message);
+        uciHandler::handle(message);
     }
 
-    handler.closeLog();
+    uciHandler::closeLog();
 
     return 0;
-}
-
-void engineInit(bool clearBoard) { //funzione che resetta le impostazioni del motore e lo prepara per una nuova partita
-    return;
 }

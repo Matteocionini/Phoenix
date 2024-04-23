@@ -5,6 +5,7 @@
 #include "uciHandler.h"
 #include "engineUtils.h"
 #include "board.h"
+#include "engine.h"
 
 Logger uciHandler::m_Logger = Logger();
 
@@ -26,7 +27,7 @@ std::vector<std::string> uciHandler::split(std::string str) { //funzione che spl
 	return splitStr;
 }
 
-void uciHandler::handle(std::string message) { //funzione che si occupa dell'interazione testuale tra GUI e motore
+void uciHandler::handle(std::string message) { //funzione che si occupa dell'interazione testuale tra GUI e motore. Riferimenti al protocollo UCI a fine file
 	std::vector<std::string> messageSplit;
 
 	messageSplit = split(message);
@@ -38,60 +39,144 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 	}*/
 
 	//gestione dei vari comandi che la GUI può inviare al motore
-	if (messageSplit.at(0) == "uci") { 
+	if (messageSplit[0] == "uci") { 
 		std::cout << "id name MyEngine\n";
 		std::cout << "id author Matteo Cionini\n";
+		std::cout << "option name Hash type spin default 3 min 3 max 128\n";
 		std::cout << "uciok\n";
 
 		m_Logger.log("id name MyEngine");
 		m_Logger.log("id author Matteo Cionini");
+		m_Logger.log("option name Hash type spin default 3 min 3 max 128");
 		m_Logger.log("uciok");
 	}
-	else if (messageSplit.at(0) == "isready") {
-		mtx.lock();
+	else if (messageSplit[0] == "isready") {
+		mtxReady.lock();
 
 		while (!isReady) { //la variabile isReady è condivisa tra più thread, per cui è possibile che essi provino a farvi accesso contemporaneamente. Lockando il mutex e, in caso la variabile isReady fosse false, unlockandolo, per poi aspettare per 1 ms, si dà la possibilità ad un altro thread di riportare il valore di isReady a true
-			mtx.unlock();
+			mtxReady.unlock();
 			Sleep(1);
-			mtx.lock();
+			mtxReady.lock();
 		}
 
 		std::cout << "readyok\n";
 		m_Logger.log("readyok");
-		mtx.unlock();
+		mtxReady.unlock();
 		
 	}
-	else if (messageSplit.at(0) == "ucinewgame") {
-		engineInit(false);
+	else if (messageSplit[0] == "ucinewgame") {
+		Engine::engineInit();
 	}
-	else if (messageSplit.at(0) == "debug") {
-		if (messageSplit.at(1) == "on") {
-			debug = true;
+	else if (messageSplit[0] == "debug") {
+		if (messageSplit[1] == "on") {
+			Engine::setDebugMode(true);
 		}
 		else {
-			debug = false;
+			Engine::setDebugMode(false);
 		}
-		std::cout << "debug: " << debug << std::endl;
+		//std::cout << "debug: " << Engine::getDebugMode() << std::endl;
 	}
-	else if (messageSplit.at(0) == "position") {
-		if (messageSplit.at(1) == "startpos") {
-			board.resetBoard();
-			std::cout << "Scacchiera resettata" << std::endl;
+	else if (messageSplit[0] == "position") {
+		if (messageSplit[1] == "startpos") {
+			Board::resetBoard();
+			//std::cout << "Scacchiera resettata" << std::endl;
 		}
 		else {
-			board.setPosition(messageSplit.at(1));
-			std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
+			Board::setPosition(messageSplit[1]);
+			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
 		}
 
 		if (messageSplit.size() > 2) {
 			int i;
 			for (i = 3; i < messageSplit.size(); i++) {
-				board.makeMove(messageSplit.at(i));
-				std::cout << "Mossa eseguita: " << messageSplit.at(i) << std::endl;
+				Board::makeMove(messageSplit[i]);
+				//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
 			}
-			m_lastMove = messageSplit.at(i - 1);
-			std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+			m_lastMove = messageSplit[i - 1];
+			//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
 		}
+	}
+	else if (messageSplit[0] == "setoption" && messageSplit[1] == "name") {
+		if (messageSplit[2] == "Hash") {
+			Engine::setHashSize(std::stoi(messageSplit[3]));
+			//std::cout << "Dimensione della hashtable: " << Engine::getHashSize() << " MB\n";
+		}
+	}
+	else if (messageSplit[0] == "go") {
+		for (int i = 1; i < messageSplit.size(); i++) {
+			if (messageSplit[i] == "searchmoves") {
+				Engine::setRestrictSearch(true);
+				//std::cout << "Restrict search: " << Engine::getRestrictSearch() << std::endl;
+
+				while ((i + 1) < messageSplit.size() && Board::isValidMove(messageSplit[i + 1])) {
+					//std::cout << "Mossa aggiunta alla lista per la ricerca ristretta: " << messageSplit[i + 1] << std::endl;
+					Engine::addMoveRestrictSearch(messageSplit[i + 1]);
+					i++;
+				}
+			}
+			else if (messageSplit[i] == "ponder") {
+				Engine::setPonderMode(true);
+				//std::cout << "Ponder mode: " << Engine::getPonderMode() << std::endl;
+			}
+			else if (messageSplit[i] == "wtime") {
+				i++;
+				Engine::setWTime(std::stoi(messageSplit[i]));
+				//std::cout << "Tempo del bianco: " << Engine::getWTime() << std::endl;
+			}
+			else if (messageSplit[i] == "btime") {
+				i++;
+				Engine::setBTime(std::stoi(messageSplit[i]));
+				//std::cout << "Tempo del nero: " << Engine::getBTime() << std::endl;
+			}
+			else if (messageSplit[i] == "winc") {
+				i++;
+				Engine::setWInc(std::stoi(messageSplit[i]));
+				//std::cout << "Incremento del bianco: " << Engine::getWInc() << std::endl;
+			}
+			else if (messageSplit[i] == "binc") {
+				i++;
+				Engine::setBInc(std::stoi(messageSplit[i]));
+				//std::cout << "Incremento del nero: " << Engine::getBInc() << std::endl;
+			}
+			else if (messageSplit[i] == "movestogo") {
+				i++;
+				Engine::setMovesToGo(std::stoi(messageSplit[i]));
+				//std::cout << "Mosse al prossimo time increment: " << Engine::getMovesToGo() << std::endl;
+			}
+			else if (messageSplit[i] == "depth") {
+				i++;
+				Engine::setMaxDepth(std::stoi(messageSplit[i]));
+				//std::cout << "Profondita' massima di ricerca: " << Engine::getMaxDepth() << std::endl;
+			}
+			else if (messageSplit[i] == "nodes") {
+				i++;
+				Engine::setMaxNodes(std::stoi(messageSplit[i]));
+				//std::cout << "Massimo di nodi valutati: " << Engine::getMaxNodes() << std::endl;
+			}
+			else if (messageSplit[i] == "mate") {
+				i++;
+				Engine::setLookForMate(true, std::stoi(messageSplit[i]));
+				//std::cout << "Alla ricerca di uno scacco matto in: " << Engine::getMovesToMate() << std::endl;
+			}
+			else if (messageSplit[i] == "movetime") {
+				i++;
+				Engine::setMoveTime(std::stoi(messageSplit[i]));
+				//std::cout << "Penso al massimo: " << Engine::getMoveTime() << " ms" << std::endl;
+			}
+			else if (messageSplit[i] == "infinite") {
+				Engine::setInfinite(true);
+				//std::cout << "Modalita infinite: " << Engine::getInfinite() << std::endl;
+			}
+		}
+		Engine::startSearchAndEval();
+	}
+	else if (messageSplit[0] == "stop") {
+		Engine::setStop(true);
+		//std::cout << "Fermo la ricerca: " << Engine::getStop() << std::endl;
+	}
+	else if (messageSplit[0] == "ponderhit") {
+		Engine::setPonderMode(false);
+		//std::cout << "Pondermode: " << Engine::getPonderMode() << std::endl;
 	}
 }
 
@@ -100,7 +185,7 @@ void uciHandler::closeLog() {
 }
 
 /*
-Possibili comandi UCI e loro funzione:
+Possibili comandi UCI e loro funzione
 
 Da GUI a motore:
 	#uci: comunica al motore di utilizzare il protocollo UCI. Il motore risponde con uciok
@@ -131,4 +216,6 @@ Da GUI a motore:
 	#ponderhit: comando che comunica al motore che è stata giocata la mossa sulla quale gli era stato detto di ponderare. Il motore può continuare la
 				sua ricerca, ma non in ponder mode
 	#quit: chiudi il programma il prima possibile
+	#setoption name <name> <x>: imposta l'opzione chiamata name, che il motore ha dichiarato di supportare, al valore x
+	#register: per ora non ritengo utile implementarlo
 */
