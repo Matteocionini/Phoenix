@@ -30,6 +30,9 @@
     <ClCompile Include="engine.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="boardHelper.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="logger.h">
@@ -45,6 +48,9 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="engine.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="boardHelper.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
   </ItemGroup>

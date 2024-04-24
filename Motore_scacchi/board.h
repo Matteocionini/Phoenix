@@ -1,6 +1,18 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
+typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle bitboard, in modo da rendere il codice più leggibile
+	nWhite = 0, //bitboard contenente tutti i pezzi bianchi
+	nBlack, //bitboard contenente tutti i pezzi neri
+	nPawns,
+	nBishops,
+	nQueens,
+	nKings,
+	nKnights,
+	nRooks
+} bitBoardType;
 
 class Board {
 public:
@@ -8,7 +20,8 @@ public:
 	static void makeMove(std::string move); //metodo per fare una mossa sulla scacchiera interna
 	static void setPosition(std::string fenstring); //metodo che consente di inserire nella scacchiera interna una data posizione
 	static bool isValidMove(std::string move); //metodo per controllare se un token sia effettivamente una mossa valida (vedi formato algebrico puro per le mosse valide)
+	static std::vector<uint64_t> getBitBoards();
 
 private:
-	static unsigned long m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
+	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 };

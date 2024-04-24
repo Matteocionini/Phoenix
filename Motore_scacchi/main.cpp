@@ -11,6 +11,8 @@
 std::mutex mtxReady;
 bool isReady = true;
 
+//TODO: finire di testare il metodo setPosition della classe board, verificare l'effettivo corretto funzionamento della gestione del comando position in UCI handler
+
 int main(){
     std::ofstream log;
     std::string message = "";

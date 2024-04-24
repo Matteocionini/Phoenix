@@ -2,10 +2,10 @@
 #include "engineUtils.h"
 
 bool Engine::m_debugMode = false;
-bool Engine::m_ponderMode = false; 
+std::atomic<bool> Engine::m_ponderMode = false; 
 int Engine::m_maxDepth = -1; 
 int Engine::m_maxNodes = -1; 
-bool Engine::m_stop = false; 
+std::atomic<bool> Engine::m_stop = false; 
 bool Engine::m_lookForMate;
 int Engine::m_movesToMate;
 int Engine::m_hashTableSize = 3;
@@ -19,6 +19,13 @@ int Engine::m_bInc = 0;
 int Engine::m_wInc = 0;
 int Engine::m_movesToGo = -1;
 int Engine::m_moveTime = -1;
+bool Engine::m_whiteCanCastleLong = false;
+bool Engine::m_whiteCanCastleShort = false;
+bool Engine::m_blackCanCastleLong = false;
+bool Engine::m_blackCanCastleShort = false;
+int Engine::m_enPassantSquare = -1;
+int Engine::m_halfMoveClock = 0;
+int Engine::m_fullMoveClock = 0;
 
 void Engine::engineInit() {
 	mtxReady.lock();
@@ -42,6 +49,11 @@ void Engine::engineInit() {
 	m_bInc = 0;
 	m_movesToGo = -1;
 	m_moveTime = -1;
+	m_whiteCanCastleLong = false;
+	m_whiteCanCastleShort = false;
+	m_blackCanCastleLong = false;
+	m_blackCanCastleShort = false;
+	m_enPassantSquare = -1;
 
 	mtxReady.lock();
 	isReady = true;
@@ -176,4 +188,68 @@ int Engine::getMoveTime() {
 
 int Engine::getMovesToMate() {
 	return m_movesToMate;
+}
+
+void Engine::setWhiteLongCastleRight(bool value) {
+	m_whiteCanCastleLong = value;
+}
+
+bool Engine::getWhiteLongCastleRight() {
+	return m_whiteCanCastleLong;
+}
+
+void Engine::setWhiteShortCastleRight(bool value) {
+	m_whiteCanCastleShort = value;
+}
+
+bool Engine::getWhiteShortCastleRight() {
+	return m_whiteCanCastleShort;
+}
+
+void Engine::setBlackLongCastleRight(bool value) {
+	m_blackCanCastleLong = value;
+}
+
+bool Engine::getBlackLongCastleRight() {
+	return m_blackCanCastleLong;
+}
+
+void Engine::setBlackShortCastleRight(bool value) {
+	m_blackCanCastleShort = value;
+}
+
+bool Engine::getBlackShortCastleRight() {
+	return m_blackCanCastleShort;
+}
+
+void Engine::setIsWhite(bool value) {
+	m_isWhite = value;
+}
+
+bool Engine::getIsWhite() {
+	return m_isWhite;
+}
+
+void Engine::setEnPassantSquare(int square) {
+	m_enPassantSquare = square;
+}
+
+int Engine::getEnPassantSquare() {
+	return m_enPassantSquare;
+}
+
+void Engine::setHalfMoveClock(int value) {
+	m_halfMoveClock = value;
+}
+
+int Engine::getHalfMoveClock() {
+	return m_halfMoveClock;
+}
+
+void Engine::setFullMoveClock(int value) {
+	m_fullMoveClock = value;
+}
+
+int Engine::getFullMoveClock() {
+	return m_fullMoveClock;
 }

@@ -130,6 +130,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="board.cpp" />
+    <ClCompile Include="boardHelper.cpp" />
     <ClCompile Include="engine.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="main.cpp" />
@@ -137,6 +138,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="board.h" />
+    <ClInclude Include="boardHelper.h" />
     <ClInclude Include="engine.h" />
     <ClInclude Include="engineUtils.h" />
     <ClInclude Include="logger.h" />

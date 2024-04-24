@@ -6,6 +6,7 @@
 #include "engineUtils.h"
 #include "board.h"
 #include "engine.h"
+#include "boardHelper.h"
 
 Logger uciHandler::m_Logger = Logger();
 
@@ -79,22 +80,35 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 	else if (messageSplit[0] == "position") {
 		if (messageSplit[1] == "startpos") {
 			Board::resetBoard();
+			BoardHelper::printBoard();
 			//std::cout << "Scacchiera resettata" << std::endl;
+			if (messageSplit.size() > 2) {
+				int i;
+				for (i = 3; i < messageSplit.size(); i++) {
+					Board::makeMove(messageSplit[i]);
+					//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
+				}
+				m_lastMove = messageSplit[i - 1];
+				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+			}
 		}
 		else {
-			Board::setPosition(messageSplit[1]);
+			std::string position = messageSplit[1] + " " + messageSplit[2] + " " + messageSplit[3] + " " + messageSplit[4] + " " + messageSplit[5] + " " + messageSplit[6];
+			Board::setPosition(position);
+			BoardHelper::printBoard();
 			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
+			if (messageSplit.size() > 7) {
+				int i;
+				for (i = 8; i < messageSplit.size(); i++) {
+					Board::makeMove(messageSplit[i]);
+					//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
+				}
+				m_lastMove = messageSplit[i - 1];
+				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+			}
 		}
 
-		if (messageSplit.size() > 2) {
-			int i;
-			for (i = 3; i < messageSplit.size(); i++) {
-				Board::makeMove(messageSplit[i]);
-				//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
-			}
-			m_lastMove = messageSplit[i - 1];
-			//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
-		}
+		
 	}
 	else if (messageSplit[0] == "setoption" && messageSplit[1] == "name") {
 		if (messageSplit[2] == "Hash") {
