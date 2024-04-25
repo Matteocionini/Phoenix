@@ -1,22 +1,43 @@
+#include <iostream>
+
 #include "board.h"
 #include "engineUtils.h"
 #include "uciHandler.h"
 
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
+previousPositionCharacteristics Board::m_prevChars;
 
-void Board::makeMove(std::string move) {
-	return;
+void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>
+	int startSquare, endSquare;
+
+	//prima di fare effettivamente la mossa, salva le caratteristiche irreversibili della posizione corrente per poter poi ritornare a questa posizione
+	m_prevChars.blackLongCastleRights = Engine::getBlackLongCastleRight();
+	m_prevChars.blackShortCastleRights = Engine::getBlackShortCastleRight();
+	m_prevChars.whiteLongCastleRights = Engine::getWhiteLongCastleRight();
+	m_prevChars.whiteShortCastleRights = Engine::getWhiteShortCastleRight();
+	m_prevChars.isWhite = Engine::getIsWhite();
+
+	m_prevChars.halfMoveClock = Engine::getHalfMoveClock();
+	m_prevChars.fullMoveClock = Engine::getFullMoveClock();
+	m_prevChars.enPassantTargetSquare = Engine::getEnPassantSquare();
+
+	startSquare = (move[0] - 'a') + (move[1] - '1') * 8;
+	endSquare = (move[2] - 'a') + (move[3] - '1') * 8;
+
+	//TODO: identificate la casella iniziale e quella finale e salvate le informazioni irreversibili della posizione precedente, ora è necessario fare la mossa
 }
 
 void Board::resetBoard() {
-	for (int i = 0; i < nBitboards; i++) {
-		setPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-	}
+	setPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
 void Board::setPosition(std::string fenstring) {
 	std::vector<std::string> fenSplit = uciHandler::split(fenstring);
 	int rank = 7, column = 0;
+
+	for (int i = 0; i < nBitboards; i++) { //prima di impostare ogni posizione è necessario pulire tutte le bitboard, in quanto se ciò non viene fatto la posizione attuale verrà "sovrapposta" alla posizione precedente
+		m_bitBoards[i] = 0;
+	}
 
 	for (int i = 0; i < fenSplit[0].size(); i++, column++) {
 
@@ -107,18 +128,21 @@ void Board::setPosition(std::string fenstring) {
 
 	if (fenSplit[1][0] == 'w') {
 		Engine::setIsWhite(true);
+		m_prevChars.isWhite = true;
 	}
 	else {
 		Engine::setIsWhite(false);
+		m_prevChars.isWhite = false;
 	}
 
-	if (fenSplit[2][0] == '-') {
-		Engine::setWhiteLongCastleRight(false);
-		Engine::setWhiteShortCastleRight(false);
-		Engine::setBlackLongCastleRight(false);
-		Engine::setBlackShortCastleRight(false);
-	}
-	else {
+	//std::cout << "Gioca il bianco? " << Engine::getIsWhite() << std::endl;
+
+	Engine::setWhiteLongCastleRight(false);
+	Engine::setWhiteShortCastleRight(false);
+	Engine::setBlackLongCastleRight(false);
+	Engine::setBlackShortCastleRight(false);
+
+	if (fenSplit[2][0] != '-') {
 		for (int i = 0; i < fenSplit[2].size(); i++) {
 			switch (fenSplit[2][i]) {
 			case 'K': {
@@ -144,15 +168,25 @@ void Board::setPosition(std::string fenstring) {
 		}
 	}
 
+	//std::cout << "Il bianco puo' arroccare lungo: " << Engine::getWhiteLongCastleRight() << std::endl;
+	//std::cout << "Il bianco puo' arroccare corto: " << Engine::getWhiteShortCastleRight() << std::endl;
+	//std::cout << "Il nero puo' arroccare lungo: " << Engine::getBlackLongCastleRight() << std::endl;
+	//std::cout << "Il nero puo' arroccare corto: " << Engine::getBlackShortCastleRight() << std::endl;
+
 	if (fenSplit[3].size() == 1) {
 		Engine::setEnPassantSquare(-1); //-1 equivale a dire che non è possibile effettuare un en passant
+		//std::cout << "Non e' possibile fare en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 	else {
 		Engine::setEnPassantSquare((fenSplit[3][0] - 'a') + (fenSplit[3][1] - '1') * 8);
+		//std::cout << "Casella bersaglio dell'en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 
 	Engine::setHalfMoveClock(std::stoi(fenSplit[4]));
+	//std::cout << "Half move clock: " << Engine::getHalfMoveClock() << std::endl;
+
 	Engine::setFullMoveClock(std::stoi(fenSplit[5]));
+	//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
 }
 
 bool Board::isValidMove(std::string move) {
@@ -178,3 +212,4 @@ std::vector<uint64_t> Board::getBitBoards() {
 
 	return bitboards;
 }
+

@@ -14,6 +14,18 @@ typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle
 	nRooks
 } bitBoardType;
 
+typedef struct { //struct contenente vari stack, ognuno dei quali contenente un'informazione irreversibile delle posizioni passate
+	bool whiteLongCastleRights;
+	bool whiteShortCastleRights;
+	bool blackLongCastleRights;
+	bool blackShortCastleRights;
+	bool isWhite;
+
+	int enPassantTargetSquare;
+	int halfMoveClock;
+	int fullMoveClock;
+} previousPositionCharacteristics;
+
 class Board {
 public:
 	static void resetBoard(); //metodo che consente di riportare la scacchiera alla condizione iniziale
@@ -24,4 +36,5 @@ public:
 
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
+	static previousPositionCharacteristics m_prevChars; //struct contenente vari stack che salvano informazioni irreversibili sull
 };
