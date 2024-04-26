@@ -36,5 +36,6 @@ public:
 
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
-	static previousPositionCharacteristics m_prevChars; //struct contenente vari stack che salvano informazioni irreversibili sull
+	static previousPositionCharacteristics m_prevChars; //struct contenente vari stack che salvano informazioni irreversibili sulla posizione
+	static uint64_t allPiecesBitboard();
 };

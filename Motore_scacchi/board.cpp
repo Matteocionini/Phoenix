@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "board.h"
+#include "boardHelper.h"
 #include "engineUtils.h"
 #include "uciHandler.h"
 
@@ -8,23 +9,54 @@ uint64_t Board::m_bitBoards[nBitboards] = { 0 };
 previousPositionCharacteristics Board::m_prevChars;
 
 void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>
-	int startSquare, endSquare;
+	int startSquare, endSquare, bitboardIndexStart, bitboardIndexEnd = -1;
+	int pieceColorStart, pieceColorEnd;
 
 	//prima di fare effettivamente la mossa, salva le caratteristiche irreversibili della posizione corrente per poter poi ritornare a questa posizione
-	m_prevChars.blackLongCastleRights = Engine::getBlackLongCastleRight();
-	m_prevChars.blackShortCastleRights = Engine::getBlackShortCastleRight();
-	m_prevChars.whiteLongCastleRights = Engine::getWhiteLongCastleRight();
-	m_prevChars.whiteShortCastleRights = Engine::getWhiteShortCastleRight();
-	m_prevChars.isWhite = Engine::getIsWhite();
+	m_prevChars.blackLongCastleRights = Engine::engineData.m_blackCanCastleLong;
+	m_prevChars.blackShortCastleRights = Engine::engineData.m_blackCanCastleShort;
+	m_prevChars.whiteLongCastleRights = Engine::engineData.m_whiteCanCastleLong;
+	m_prevChars.whiteShortCastleRights = Engine::engineData.m_whiteCanCastleShort;
+	m_prevChars.isWhite = Engine::engineData.m_isWhite;
 
-	m_prevChars.halfMoveClock = Engine::getHalfMoveClock();
-	m_prevChars.fullMoveClock = Engine::getFullMoveClock();
-	m_prevChars.enPassantTargetSquare = Engine::getEnPassantSquare();
+	m_prevChars.halfMoveClock = Engine::engineData.m_halfMoveClock;
+	m_prevChars.fullMoveClock = Engine::engineData.m_fullMoveClock;
+	m_prevChars.enPassantTargetSquare = Engine::engineData.m_enPassantSquare;
 
 	startSquare = (move[0] - 'a') + (move[1] - '1') * 8;
 	endSquare = (move[2] - 'a') + (move[3] - '1') * 8;
 
 	//TODO: identificate la casella iniziale e quella finale e salvate le informazioni irreversibili della posizione precedente, ora è necessario fare la mossa
+	for (int i = 0; i < nBitboards; i++) { //grazie a questo ciclo for posso identificare di che tipo il pezzo sulla casella di partenza e quello sulla casella di arrivo sono
+		if ((m_bitBoards[i] >> startSquare) & 1) { 
+			if (i >= 2) { //le bitboard di indice da 2 in poi sono le bitboard specifiche dei pezzi, le altre 2 sono le bitboard che identificano il colore del pezzo
+				bitboardIndexStart = i;
+			}
+			else {
+				pieceColorStart = i; //la bitboard contenente i pezzi bianchi ha indice 0
+			}
+		}
+		
+		if (((m_bitBoards[i] >> endSquare) & 1) && i >= 2) {
+			bitboardIndexEnd = i;
+		}
+	}
+
+	if (bitboardIndexEnd != -1) { // se c'e' un pezzo nella casella di arrivo lo tolgo (è una cattura)
+		pieceColorEnd = !pieceColorStart; //ovvero prendi il colore opposto a quello dela casella di partenza, in quanto non è legale catturare il proprio pezzo
+		m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] ^ ((uint64_t)1 << endSquare); 
+		m_bitBoards[pieceColorEnd] = m_bitBoards[pieceColorEnd] ^ ((uint64_t)1 << endSquare);
+	}
+
+
+	m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare); //tolgo il pezzo dalla casella di partenza
+	m_bitBoards[pieceColorStart] = m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare);
+
+	m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //lo metto nella casella di arrivo
+	m_bitBoards[pieceColorStart] = m_bitBoards[pieceColorStart] | ((uint64_t)1 << endSquare);
+	
+
+	BoardHelper::printBoard();
 }
 
 void Board::resetBoard() {
@@ -127,41 +159,41 @@ void Board::setPosition(std::string fenstring) {
 	}
 
 	if (fenSplit[1][0] == 'w') {
-		Engine::setIsWhite(true);
+		Engine::engineData.m_isWhite = true;
 		m_prevChars.isWhite = true;
 	}
 	else {
-		Engine::setIsWhite(false);
+		Engine::engineData.m_isWhite = false;
 		m_prevChars.isWhite = false;
 	}
 
 	//std::cout << "Gioca il bianco? " << Engine::getIsWhite() << std::endl;
 
-	Engine::setWhiteLongCastleRight(false);
-	Engine::setWhiteShortCastleRight(false);
-	Engine::setBlackLongCastleRight(false);
-	Engine::setBlackShortCastleRight(false);
+	Engine::engineData.m_whiteCanCastleLong = false;
+	Engine::engineData.m_whiteCanCastleShort = false;
+	Engine::engineData.m_blackCanCastleLong = false;
+	Engine::engineData.m_blackCanCastleShort = false;
 
 	if (fenSplit[2][0] != '-') {
 		for (int i = 0; i < fenSplit[2].size(); i++) {
 			switch (fenSplit[2][i]) {
 			case 'K': {
-				Engine::setWhiteShortCastleRight(true);
+				Engine::engineData.m_whiteCanCastleShort = true;
 				break;
 			}
 
 			case 'Q': {
-				Engine::setWhiteLongCastleRight(true);
+				Engine::engineData.m_whiteCanCastleLong = true;
 				break;
 			}
 
 			case 'q': {
-				Engine::setBlackLongCastleRight(true);
+				Engine::engineData.m_blackCanCastleLong = true;
 				break;
 			}
 
 			case 'k': {
-				Engine::setBlackShortCastleRight(true);
+				Engine::engineData.m_blackCanCastleShort = true;
 			}
 			}
 
@@ -174,18 +206,18 @@ void Board::setPosition(std::string fenstring) {
 	//std::cout << "Il nero puo' arroccare corto: " << Engine::getBlackShortCastleRight() << std::endl;
 
 	if (fenSplit[3].size() == 1) {
-		Engine::setEnPassantSquare(-1); //-1 equivale a dire che non è possibile effettuare un en passant
+		Engine::engineData.m_enPassantSquare = -1; //-1 equivale a dire che non è possibile effettuare un en passant
 		//std::cout << "Non e' possibile fare en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 	else {
-		Engine::setEnPassantSquare((fenSplit[3][0] - 'a') + (fenSplit[3][1] - '1') * 8);
+		Engine::engineData.m_enPassantSquare = (fenSplit[3][0] - 'a') + (fenSplit[3][1] - '1') * 8;
 		//std::cout << "Casella bersaglio dell'en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 
-	Engine::setHalfMoveClock(std::stoi(fenSplit[4]));
+	Engine::engineData.m_halfMoveClock = std::stoi(fenSplit[4]);
 	//std::cout << "Half move clock: " << Engine::getHalfMoveClock() << std::endl;
 
-	Engine::setFullMoveClock(std::stoi(fenSplit[5]));
+	Engine::engineData.m_fullMoveClock = std::stoi(fenSplit[5]);
 	//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
 }
 
@@ -213,3 +245,12 @@ std::vector<uint64_t> Board::getBitBoards() {
 	return bitboards;
 }
 
+uint64_t Board::allPiecesBitboard() {
+	uint64_t out = 0;
+
+	for (int i = 2; i < nBitboards; i++) {
+		out = out | m_bitBoards[i];
+	}
+
+	return out;
+}

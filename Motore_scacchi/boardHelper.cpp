@@ -57,7 +57,7 @@ void BoardHelper::printBoard() {
 					std::cout << "B";
 				}
 				else {
-					std::cout << "B";
+					std::cout << "b";
 				}
 				break;
 			}

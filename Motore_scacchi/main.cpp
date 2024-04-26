@@ -11,7 +11,7 @@
 std::mutex mtxReady;
 bool isReady = true;
 
-//TODO: terminare l'implementazione del metodo makeMove e implementare il metodo unmakeMove
+//TODO: implementare il metodo unmakeMove, aggiungere al metodo makeMove la gestione dell'arrocco e dell'en passant
 
 int main(){
     std::ofstream log;

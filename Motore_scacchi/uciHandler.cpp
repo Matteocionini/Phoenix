@@ -46,7 +46,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 		std::cout << "option name Hash type spin default 3 min 3 max 128\n";
 		std::cout << "uciok\n";
 
-		m_Logger.log("id name MyEngine");
+		m_Logger.log("id name Phoenix 0.1");
 		m_Logger.log("id author Matteo Cionini");
 		m_Logger.log("option name Hash type spin default 3 min 3 max 128");
 		m_Logger.log("uciok");
@@ -70,12 +70,12 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 	}
 	else if (messageSplit[0] == "debug") {
 		if (messageSplit[1] == "on") {
-			Engine::setDebugMode(true);
+			Engine::engineData.m_debugMode = true;
 		}
 		else {
-			Engine::setDebugMode(false);
+			Engine::engineData.m_debugMode = false;
 		}
-		//std::cout << "debug: " << Engine::getDebugMode() << std::endl;
+		//std::cout << "debug: " << Engine::engineData.m_debugMode << std::endl;
 	}
 	else if (messageSplit[0] == "position") {
 		if (messageSplit[1] == "startpos") {
@@ -112,85 +112,86 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 	}
 	else if (messageSplit[0] == "setoption" && messageSplit[1] == "name") {
 		if (messageSplit[2] == "Hash") {
-			Engine::setHashSize(std::stoi(messageSplit[3]));
-			//std::cout << "Dimensione della hashtable: " << Engine::getHashSize() << " MB\n";
+			Engine::engineData.m_hashTableSize = std::stoi(messageSplit[4]);
+			//std::cout << "Dimensione della hashtable: " << Engine::engineData.m_hashTableSize << " MB\n";
 		}
 	}
 	else if (messageSplit[0] == "go") {
 		for (int i = 1; i < messageSplit.size(); i++) {
 			if (messageSplit[i] == "searchmoves") {
-				Engine::setRestrictSearch(true);
-				//std::cout << "Restrict search: " << Engine::getRestrictSearch() << std::endl;
+				Engine::engineData.m_restrictSearch = true;
+				//std::cout << "Restrict search: " << Engine::engineData.m_restrictSearch << std::endl;
 
 				while ((i + 1) < messageSplit.size() && Board::isValidMove(messageSplit[i + 1])) {
 					//std::cout << "Mossa aggiunta alla lista per la ricerca ristretta: " << messageSplit[i + 1] << std::endl;
-					Engine::addMoveRestrictSearch(messageSplit[i + 1]);
+					Engine::engineData.m_moveList.push_back(messageSplit[i + 1]);
 					i++;
 				}
 			}
 			else if (messageSplit[i] == "ponder") {
-				Engine::setPonderMode(true);
-				//std::cout << "Ponder mode: " << Engine::getPonderMode() << std::endl;
+				Engine::engineData.m_ponderMode = true;
+				//std::cout << "Ponder mode: " << Engine::engineData.m_ponderMode << std::endl;
 			}
 			else if (messageSplit[i] == "wtime") {
 				i++;
-				Engine::setWTime(std::stoi(messageSplit[i]));
-				//std::cout << "Tempo del bianco: " << Engine::getWTime() << std::endl;
+				Engine::engineData.m_wTime = std::stoi(messageSplit[i]);
+				//std::cout << "Tempo del bianco: " << Engine::engineData.m_wTime << std::endl;
 			}
 			else if (messageSplit[i] == "btime") {
 				i++;
-				Engine::setBTime(std::stoi(messageSplit[i]));
-				//std::cout << "Tempo del nero: " << Engine::getBTime() << std::endl;
+				Engine::engineData.m_bTime = std::stoi(messageSplit[i]);
+				//std::cout << "Tempo del nero: " << Engine::engineData.m_bTime << std::endl;
 			}
 			else if (messageSplit[i] == "winc") {
 				i++;
-				Engine::setWInc(std::stoi(messageSplit[i]));
-				//std::cout << "Incremento del bianco: " << Engine::getWInc() << std::endl;
+				Engine::engineData.m_wInc = std::stoi(messageSplit[i]);
+				//std::cout << "Incremento del bianco: " << Engine::engineData.m_wInc << std::endl;
 			}
 			else if (messageSplit[i] == "binc") {
 				i++;
-				Engine::setBInc(std::stoi(messageSplit[i]));
-				//std::cout << "Incremento del nero: " << Engine::getBInc() << std::endl;
+				Engine::engineData.m_bInc = std::stoi(messageSplit[i]);
+				//std::cout << "Incremento del nero: " << Engine::engineData.m_bInc << std::endl;
 			}
 			else if (messageSplit[i] == "movestogo") {
 				i++;
-				Engine::setMovesToGo(std::stoi(messageSplit[i]));
-				//std::cout << "Mosse al prossimo time increment: " << Engine::getMovesToGo() << std::endl;
+				Engine::engineData.m_movesToGo = std::stoi(messageSplit[i]);
+				//std::cout << "Mosse al prossimo time increment: " << Engine::engineData.m_movesToGo << std::endl;
 			}
 			else if (messageSplit[i] == "depth") {
 				i++;
-				Engine::setMaxDepth(std::stoi(messageSplit[i]));
-				//std::cout << "Profondita' massima di ricerca: " << Engine::getMaxDepth() << std::endl;
+				Engine::engineData.m_maxDepth = std::stoi(messageSplit[i]);
+				//std::cout << "Profondita' massima di ricerca: " << Engine::engineData.m_maxDepth << std::endl;
 			}
 			else if (messageSplit[i] == "nodes") {
 				i++;
-				Engine::setMaxNodes(std::stoi(messageSplit[i]));
-				//std::cout << "Massimo di nodi valutati: " << Engine::getMaxNodes() << std::endl;
+				Engine::engineData.m_maxNodes = std::stoi(messageSplit[i]);
+				//std::cout << "Massimo di nodi valutati: " << Engine::engineData.m_maxNodes << std::endl;
 			}
 			else if (messageSplit[i] == "mate") {
 				i++;
-				Engine::setLookForMate(true, std::stoi(messageSplit[i]));
-				//std::cout << "Alla ricerca di uno scacco matto in: " << Engine::getMovesToMate() << std::endl;
+				Engine::engineData.m_lookForMate = true; 
+				Engine::engineData.m_movesToMate = std::stoi(messageSplit[i]);
+				//std::cout << "Alla ricerca di uno scacco matto in: " << Engine::engineData.m_movesToMate << std::endl;
 			}
 			else if (messageSplit[i] == "movetime") {
 				i++;
-				Engine::setMoveTime(std::stoi(messageSplit[i]));
-				//std::cout << "Penso al massimo: " << Engine::getMoveTime() << " ms" << std::endl;
+				Engine::engineData.m_moveTime = std::stoi(messageSplit[i]);
+				//std::cout << "Penso al massimo: " << Engine::engineData.m_moveTime << " ms" << std::endl;
 			}
 			else if (messageSplit[i] == "infinite") {
-				Engine::setInfinite(true);
-				//std::cout << "Modalita infinite: " << Engine::getInfinite() << std::endl;
+				Engine::engineData.m_infinite = true;
+				//std::cout << "Modalita infinite: " << Engine::engineData.m_infinite << std::endl;
 			}
 		}
 		Engine::startSearchAndEval();
 	}
 	else if (messageSplit[0] == "stop") {
-		Engine::setStop(true);
-		//std::cout << "Fermo la ricerca: " << Engine::getStop() << std::endl;
+		Engine::engineData.m_stop = true;
+		//std::cout << "Fermo la ricerca: " << Engine::engineData.m_stop << std::endl;
 	}
 	else if (messageSplit[0] == "ponderhit") {
-		Engine::setPonderMode(false);
-		//std::cout << "Pondermode: " << Engine::getPonderMode() << std::endl;
+		Engine::engineData.m_ponderMode = false;
+		//std::cout << "Pondermode: " << Engine::engineData.m_ponderMode << std::endl;
 	}
 }
 
