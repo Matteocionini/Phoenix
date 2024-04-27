@@ -14,7 +14,7 @@ typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle
 	nRooks
 } bitBoardType;
 
-typedef struct { //struct contenente vari stack, ognuno dei quali contenente un'informazione irreversibile delle posizioni passate
+typedef struct { //struct contenente varie informazioni irreversibili della posizione passata
 	bool whiteLongCastleRights;
 	bool whiteShortCastleRights;
 	bool blackLongCastleRights;
@@ -24,6 +24,7 @@ typedef struct { //struct contenente vari stack, ognuno dei quali contenente un'
 	int enPassantTargetSquare;
 	int halfMoveClock;
 	int fullMoveClock;
+	int prevPieceOnEndSquare;
 } previousPositionCharacteristics;
 
 class Board {

@@ -4,6 +4,7 @@
 #include "boardHelper.h"
 #include "engineUtils.h"
 #include "uciHandler.h"
+#include "engine.h"
 
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
 previousPositionCharacteristics Board::m_prevChars;
@@ -22,9 +23,12 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 	m_prevChars.halfMoveClock = Engine::engineData.m_halfMoveClock;
 	m_prevChars.fullMoveClock = Engine::engineData.m_fullMoveClock;
 	m_prevChars.enPassantTargetSquare = Engine::engineData.m_enPassantSquare;
+	m_prevChars.prevPieceOnEndSquare = -1;
 
 	startSquare = (move[0] - 'a') + (move[1] - '1') * 8;
 	endSquare = (move[2] - 'a') + (move[3] - '1') * 8;
+
+	
 
 	//TODO: identificate la casella iniziale e quella finale e salvate le informazioni irreversibili della posizione precedente, ora è necessario fare la mossa
 	for (int i = 0; i < nBitboards; i++) { //grazie a questo ciclo for posso identificare di che tipo il pezzo sulla casella di partenza e quello sulla casella di arrivo sono
@@ -42,20 +46,97 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 		}
 	}
 
-	if (bitboardIndexEnd != -1) { // se c'e' un pezzo nella casella di arrivo lo tolgo (è una cattura)
+	if (bitboardIndexEnd != -1) { // se c'e' un pezzo nella casella di arrivo lo tolgo (è una cattura) e salvo questa informazione per poter tornare indietro
+		m_prevChars.prevPieceOnEndSquare = bitboardIndexEnd;
+
 		pieceColorEnd = !pieceColorStart; //ovvero prendi il colore opposto a quello dela casella di partenza, in quanto non è legale catturare il proprio pezzo
 		m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] ^ ((uint64_t)1 << endSquare); 
 		m_bitBoards[pieceColorEnd] = m_bitBoards[pieceColorEnd] ^ ((uint64_t)1 << endSquare);
 	}
 
 
-	m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare); //tolgo il pezzo dalla casella di partenza
-	m_bitBoards[pieceColorStart] = m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare);
+	m_bitBoards[bitboardIndexStart] = (m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //tolgo il pezzo dalla casella di partenza e lo metto in quella di arrivo
+	m_bitBoards[pieceColorStart] = (m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare);
 
-	m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //lo metto nella casella di arrivo
-	m_bitBoards[pieceColorStart] = m_bitBoards[pieceColorStart] | ((uint64_t)1 << endSquare);
-	
+	if (endSquare == Engine::engineData.m_enPassantSquare && bitboardIndexStart == nPawns) { //se la mossa che è appena stata fatta e' un en passant
+		Engine::engineData.m_enPassantSquare = -1;
+		
+		if (pieceColorStart == nBlack) { //se il pezzo che si è mosso è nero, il pezzo da rimuovere risiederà nella riga sopra rispetto alla casella di arrivo del pedone che si è mosso
+			m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare + 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
+			m_bitBoards[!pieceColorStart] = m_bitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare + 8));
+		}
+		else {
+			m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare - 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
+			m_bitBoards[!pieceColorStart] = m_bitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare - 8));
+		}
+	}
 
+	if (move == "e1g1") { //ovvero se la mossa e' un arrocco corto per il bianco
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
+		m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
+		Engine::engineData.m_whiteCanCastleShort = false;
+	}
+	else if (move == "e1c1") { //ovvero se la mossa e' un arrocco lungo per il bianco
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
+		m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
+		Engine::engineData.m_whiteCanCastleLong = false;
+	}
+	else if (move == "e8g8") { //se la mossa e' un arrocco corto per il nero
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
+		m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
+		Engine::engineData.m_blackCanCastleShort = false;
+	}
+	else if (move == "e8c8") { //se la mossa e' un arrocco lungo per il nero
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
+		m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
+		Engine::engineData.m_blackCanCastleShort = false;
+	}
+
+
+	//aggiornamento relativo alle informazioni sulla posizione corrente, dopo aver eseguito la mossa
+	Engine::engineData.m_enPassantSquare = -1;
+
+	if (bitboardIndexStart == nPawns && abs(startSquare - endSquare) == 16) { //se un pedone è stato spinto di due quadrati, segnalo in quale casella e' possibile fare en passant
+		if (pieceColorStart == nWhite) {
+			Engine::engineData.m_enPassantSquare = endSquare - 8;
+		}
+		else {
+			Engine::engineData.m_enPassantSquare = endSquare + 8;
+		}
+
+		//std::cout << "Casella di en passant: " << Engine::engineData.m_enPassantSquare;
+	}
+	else if (endSquare == 0 || (startSquare == 0 && bitboardIndexStart == nRooks && pieceColorStart == nWhite)) {
+		Engine::engineData.m_whiteCanCastleLong = false;
+		//std::cout << "Tolto il privilegio di arrocco lungo del bianco\n";
+	}
+	else if (endSquare == 7 || (startSquare == 7 && bitboardIndexStart == nRooks && pieceColorStart == nWhite)) {
+		Engine::engineData.m_whiteCanCastleShort = false;
+		//std::cout << "Tolto il privilegio di arrocco corto del bianco\n";
+	}
+	else if (endSquare == 56 || (startSquare == 56 && bitboardIndexStart == nRooks && pieceColorStart == nBlack)) {
+		Engine::engineData.m_blackCanCastleLong = false;
+		//std::cout << "Tolto il privilegio di arrocco lungo del nero\n";
+	}
+	else if (endSquare == 63 || (startSquare == 63 && bitboardIndexStart == nRooks && pieceColorStart == nBlack)) {
+		//std::cout << "Tolto il privilegio di arrocco corto del nero\n";
+		Engine::engineData.m_blackCanCastleShort = false;
+	}
+	else if (bitboardIndexStart == nKings) {
+		if (pieceColorStart == nWhite) {
+			Engine::engineData.m_whiteCanCastleLong = false;
+			Engine::engineData.m_whiteCanCastleShort = false;
+			//std::cout << "Rimossi tutti i diritti di arrocco del bianco\n";
+		}
+		else {
+			Engine::engineData.m_blackCanCastleLong = false;
+			Engine::engineData.m_blackCanCastleShort = false;
+			//std::cout << "Rimossi tutti i diritti di arrocco del nero\n";
+		}
+	}
+
+	Engine::engineData.m_isWhite = !Engine::engineData.m_isWhite;
+	//std::cout << "Deve giocare il bianco: " << Engine::engineData.m_isWhite << std::endl;
 	BoardHelper::printBoard();
 }
 
@@ -222,18 +303,16 @@ void Board::setPosition(std::string fenstring) {
 }
 
 bool Board::isValidMove(std::string move) {
-	bool isMove = true;
-
 	if (move.length() < 4 || move[0] < 'a' || move[0] > 'h' || move[2] < 'a' || move[2] > 'h' 
 		|| move[1] < '1' || move[1] > '8' || move[3] < '1' || move[3] > '8') {
-		isMove = false;
+		return false;
 	}
 
 	if (move.length() == 5 && (move[4] != 'q' && move[4] != 'r' && move[4] != 'b' && move[4] != 'n')) {
-		isMove = false;
+		return false;
 	}
 
-	return isMove;
+	return true;
 }
 
 std::vector<uint64_t> Board::getBitBoards() {
