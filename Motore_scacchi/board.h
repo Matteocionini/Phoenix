@@ -25,6 +25,7 @@ typedef struct { //struct contenente varie informazioni irreversibili della posi
 	int halfMoveClock;
 	int fullMoveClock;
 	int prevPieceOnEndSquare;
+	int colorOfPrevPieceOnEndSquare;
 } previousPositionCharacteristics;
 
 class Board {
