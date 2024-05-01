@@ -9,7 +9,7 @@
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
 previousPositionCharacteristics Board::m_prevChars;
 
-void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>
+void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>[<promotion>]
 	int startSquare, endSquare, bitboardIndexStart, bitboardIndexEnd = -1;
 	int pieceColorStart, pieceColorEnd;
 
@@ -166,6 +166,7 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 	Engine::engineData.m_isWhite = !Engine::engineData.m_isWhite;
 	//std::cout << "Deve giocare il bianco: " << Engine::engineData.m_isWhite << std::endl;
 	BoardHelper::printBoard();
+	//unmakeMove(move); //solo per fini di debug
 }
 
 void Board::resetBoard() {
@@ -360,4 +361,177 @@ uint64_t Board::allPiecesBitboard() {
 	}
 
 	return out;
+}
+
+void Board::unmakeMove(std::string move) {
+	int startSquare, endSquare;
+	int pieceColor, pieceType;
+
+	//reimposto le caratteristiche irreversibili della posizione
+	Engine::engineData.m_whiteCanCastleLong = m_prevChars.whiteLongCastleRights;
+	Engine::engineData.m_whiteCanCastleShort = m_prevChars.whiteShortCastleRights;
+	Engine::engineData.m_blackCanCastleLong = m_prevChars.blackLongCastleRights;
+	Engine::engineData.m_blackCanCastleShort = m_prevChars.blackShortCastleRights;
+	Engine::engineData.m_isWhite = m_prevChars.isWhite;
+
+	Engine::engineData.m_enPassantSquare = m_prevChars.enPassantTargetSquare;
+	Engine::engineData.m_halfMoveClock = m_prevChars.halfMoveClock;
+	Engine::engineData.m_fullMoveClock = m_prevChars.fullMoveClock;
+
+	//calcolo la casella di partenza e la casella di arrivo del pezzo
+	startSquare = (move[0] - 'a') + (move[1] - '1') * 8;
+	endSquare = (move[2] - 'a') + (move[3] - '1') * 8;
+
+	//il colore del pezzo che si è mosso è uguale al colore del giocatore che doveva giocare nella mossa precedente
+	if (Engine::engineData.m_isWhite) {
+		pieceColor = nWhite;
+	}
+	else {
+		pieceColor = nBlack;
+	}
+
+	//identifico il tipo di pezzo che si è mosso
+	for (int i = 2; i < nBitboards; i++) {
+		if ((m_bitBoards[i] >> endSquare) & 1) {
+			pieceType = i;
+		}
+	}
+
+	//tolgo il pezzo dalla casella in cui è stato messo
+	m_bitBoards[pieceType] = m_bitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
+	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
+
+	//reinserisco un eventuale pezzo catturato durante la mossa precedente
+	if (m_prevChars.prevPieceOnEndSquare != -1) {
+		m_bitBoards[m_prevChars.prevPieceOnEndSquare] = m_bitBoards[m_prevChars.prevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+		m_bitBoards[m_prevChars.colorOfPrevPieceOnEndSquare] = m_bitBoards[m_prevChars.colorOfPrevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+	}
+
+	if (move.length() == 5) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
+		pieceType = nPawns;
+	}
+
+	//rimetto il pezzo nella casella da cui è partito
+	m_bitBoards[pieceType] = m_bitBoards[pieceType] | ((uint64_t)1 << startSquare);
+	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] | ((uint64_t)1 << startSquare);
+
+	if (move == "e1c1") { //ovvero se la mossa è un arrocco lungo per il bianco
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
+		m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
+	}
+	else if (move == "e1g1") { //ovvero se la mossa è un arrocco corto per il bianco
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
+		m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
+	}
+	else if (move == "e8c8") { //ovvero se la mossa è un arrocco lungo per il nero
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
+		m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
+	}
+	else if (move == "e8g8") { //ovvero se la mossa è un arrocco corto per il nero
+		m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
+		m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
+	}
+	else if (endSquare == Engine::engineData.m_enPassantSquare && pieceType == nPawns) { //se la mossa precedente è stata un en passant, rimetto il pedone catturato nella sua casella
+		if (pieceColor == nWhite) {
+			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8)); 
+			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
+		}
+		else {
+			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
+			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
+		}
+	}
+
+	//BoardHelper::printBoard();
+}
+
+uint64_t Board::rookMoves(int startSquare, uint64_t blockerBitboard) {
+	uint64_t moves = 0;
+	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui la torre può muoversi
+
+	//la torre può muoversi soltanto in linea retta orizzontalmente o verticalmente.
+	for (currSquare = startSquare + 8; currSquare <= 63; currSquare += 8) { //analizzo il movimento in verticale verso l'alto
+		moves = moves | ((uint64_t)1 << currSquare);
+		if (((blockerBitboard >> currSquare) & 1) == 1) {
+			break;
+		}
+	}
+
+	for (currSquare = startSquare - 8; currSquare >= 0; currSquare -= 8) { //analizzo il movimento in verticale verso il basso
+		moves = moves | ((uint64_t)1 << currSquare);
+		if (((blockerBitboard >> currSquare) & 1) == 1) {
+			break;
+		}
+	}
+
+	for (currSquare = startSquare + 1; currSquare <= (startSquare / 8) * 8 + 7; currSquare += 1) { //analizzo il movimento in orizzontale verso destra
+		moves = moves | ((uint64_t)1 << currSquare);
+		if (((blockerBitboard >> currSquare) & 1) == 1) {
+			break;
+		}
+	}
+
+	for (currSquare = startSquare - 1; currSquare >= (startSquare / 8) * 8; currSquare -= 1) { //analizzo il movimento in orizzontale verso sinistra
+		moves = moves | ((uint64_t)1 << currSquare);
+		if (((blockerBitboard >> currSquare) & 1) == 1) {
+			break;
+		}
+	}
+
+	//BoardHelper::printLegalMoves(moves);
+
+	return moves;
+}
+
+uint64_t Board::bishopMoves(int startSquare, uint64_t blockerBitboard) {
+	uint64_t moves = 0;
+	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui l'alfiere può muoversi
+
+	if (startSquare != 7 && startSquare != 15 && startSquare != 23 && startSquare != 31 && startSquare != 39 && startSquare != 48 && startSquare != 56 && startSquare != 63) {
+		for (currSquare = startSquare + 9; currSquare <= 63; currSquare += 9) { //movimento in diagonale verso destra e verso l'alto
+			moves = moves | ((uint64_t)1 << currSquare);
+			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare == 7 || currSquare == 15 || currSquare == 23 || currSquare == 31 || currSquare == 39 || currSquare == 48 || currSquare == 56 || currSquare == 63) {
+				break;
+			}
+		}
+	}
+
+	if ((startSquare % 8) != 0) {
+		for (currSquare = startSquare - 9; currSquare >= 0; currSquare -= 9) { //movimento in diagonale verso il basso e verso sinistra
+			moves = moves | ((uint64_t)1 << currSquare);
+			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare % 8 == 0) {
+				break;
+			}
+		}
+	}
+
+	if ((startSquare % 8) != 0) {
+		for (currSquare = startSquare + 7; currSquare <= 63; currSquare += 7) { //movimento in diagonale verso l'alto e verso sinistra
+			moves = moves | ((uint64_t)1 << currSquare);
+			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare % 8 == 0) {
+				break;
+			}
+		}
+	}
+
+	if (startSquare != 7 && startSquare != 15 && startSquare != 23 && startSquare != 31 && startSquare != 39 && startSquare != 48 && startSquare != 56 && startSquare != 63) {
+		for (currSquare = startSquare - 7; currSquare >= 0; currSquare -= 7) { //movimento in diagonale verso il basso e verso destra
+			moves = moves | ((uint64_t)1 << currSquare);
+			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare == 7 || currSquare == 15 || currSquare == 23 || currSquare == 31 || currSquare == 39 || currSquare == 48 || currSquare == 56 || currSquare == 63) {
+				break;
+			}
+		}
+	}
+	
+	//BoardHelper::printLegalMoves(moves);
+
+	return moves;
+}
+
+uint64_t Board::queenMoves(int startSquare, uint64_t blockerBitboard) {
+	uint64_t moves = bishopMoves(startSquare, blockerBitboard) | rookMoves(startSquare, blockerBitboard);
+
+	BoardHelper::printLegalMoves(moves);
+
+	return moves;
 }

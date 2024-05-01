@@ -113,3 +113,24 @@ void BoardHelper::printBoard() {
 	}
 	std::cout << "---------------------------------" << std::endl;
 }
+
+void BoardHelper::printLegalMoves(uint64_t moves) {
+	for (int i = 7; i >= 0; i--) {
+		std::cout << "---------------------------------" << std::endl;
+		std::cout << "| ";
+
+		for (int j = 0; j < 8; j++) {
+			if ((moves >> (i * 8 + j)) & 1) {
+				std::cout << "X";
+			}
+			else {
+				std::cout << " ";
+			}
+
+			std::cout << " | ";
+		}
+
+		std::cout << std::endl;
+	}
+	std::cout << "---------------------------------" << std::endl;
+}
