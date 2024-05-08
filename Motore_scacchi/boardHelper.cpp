@@ -1,9 +1,11 @@
 #include <iostream>
+#include <memory>
 
 #include "boardHelper.h"
+#include "engineUtils.h"
 
 void BoardHelper::printBoard() {
-	std::vector<uint64_t> bitboards = Board::getBitBoards();
+	std::shared_ptr<uint64_t[]> bitboards = Board::getBitBoards();
 	bitBoardType pieceType, pieceColor;
 
 	std::cout << "\n\n";

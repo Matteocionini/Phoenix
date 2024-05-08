@@ -11,7 +11,7 @@
 std::mutex mtxReady;
 bool isReady = true;
 
-//TODO: implementare i metodi per calcolare le mosse pseudo-legali del cavallo, dei pedoni e del re, e implementare le magic bitboard
+//TODO: implementare le magic bitboard e la generazione delle mosse
 
 int main(){
     std::ofstream log;
