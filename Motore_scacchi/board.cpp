@@ -685,3 +685,86 @@ uint64_t Board::pawnMoves(int startSquare, uint64_t blockerBitboard, bool isWhit
 
 	return moves;
 }
+
+void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, positionCharacteristics& previousPositionInfo) {
+	int pieceColor, pieceType;
+
+	//reimposto le caratteristiche irreversibili della posizione
+	Engine::engineData.m_whiteCanCastleLong = previousPositionInfo.whiteLongCastleRights;
+	Engine::engineData.m_whiteCanCastleShort = previousPositionInfo.whiteShortCastleRights;
+	Engine::engineData.m_blackCanCastleLong = previousPositionInfo.blackLongCastleRights;
+	Engine::engineData.m_blackCanCastleShort = previousPositionInfo.blackShortCastleRights;
+	Engine::engineData.m_isWhite = previousPositionInfo.isWhite;
+
+	Engine::engineData.m_enPassantSquare = previousPositionInfo.enPassantTargetSquare;
+	Engine::engineData.m_halfMoveClock = previousPositionInfo.halfMoveClock;
+	Engine::engineData.m_fullMoveClock = previousPositionInfo.fullMoveClock;
+
+	//il colore del pezzo che si è mosso è uguale al colore del giocatore che doveva giocare nella mossa precedente
+	if (Engine::engineData.m_isWhite) {
+		pieceColor = nWhite;
+	}
+	else {
+		pieceColor = nBlack;
+	}
+
+	//identifico il tipo di pezzo che si è mosso
+	for (int i = 2; i < nBitboards; i++) {
+		if ((m_bitBoards[i] >> endSquare) & 1) {
+			pieceType = i;
+		}
+	}
+
+	//tolgo il pezzo dalla casella in cui è stato messo
+	m_bitBoards[pieceType] = m_bitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
+	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
+
+	//reinserisco un eventuale pezzo catturato durante la mossa precedente
+	if (previousPositionInfo.prevPieceOnEndSquare != -1) {
+		m_bitBoards[previousPositionInfo.prevPieceOnEndSquare] = m_bitBoards[previousPositionInfo.prevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+		m_bitBoards[previousPositionInfo.colorOfPrevPieceOnEndSquare] = m_bitBoards[previousPositionInfo.colorOfPrevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+	}
+
+	if (promotionPiece != -1) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
+		pieceType = nPawns;
+	}
+
+	//rimetto il pezzo nella casella da cui è partito
+	m_bitBoards[pieceType] = m_bitBoards[pieceType] | ((uint64_t)1 << startSquare);
+	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] | ((uint64_t)1 << startSquare);
+
+	if (pieceType == nKings) {
+		if (startSquare == 4 && endSquare == 2) { //ovvero se la mossa è un arrocco lungo per il bianco
+			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
+			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
+		}
+		else if (startSquare == 4 && endSquare == 6) { //ovvero se la mossa è un arrocco corto per il bianco
+			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
+			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
+		}
+		else if (startSquare == 60 && endSquare == 58) { //ovvero se la mossa è un arrocco lungo per il nero
+			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
+			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
+		}
+		else if (startSquare == 60 && endSquare == 62) { //ovvero se la mossa è un arrocco corto per il nero
+			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
+			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
+		}
+	}
+	else if (endSquare == Engine::engineData.m_enPassantSquare && pieceType == nPawns) { //se la mossa precedente è stata un en passant, rimetto il pedone catturato nella sua casella
+		if (pieceColor == nWhite) {
+			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8));
+			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
+		}
+		else {
+			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
+			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
+		}
+	}
+
+	BoardHelper::printBoard();
+}
+
+uint64_t Board::getBitboard(int bitboardIndex) {
+	return m_bitBoards[bitboardIndex];
+}

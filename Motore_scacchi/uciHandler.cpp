@@ -193,6 +193,9 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 		Engine::engineData.m_ponderMode = false;
 		//std::cout << "Pondermode: " << Engine::engineData.m_ponderMode << std::endl;
 	}
+	else {
+		return;
+	}
 }
 
 void uciHandler::closeLog() {

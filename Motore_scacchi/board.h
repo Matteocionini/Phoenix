@@ -14,7 +14,7 @@ typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle
 	nRooks
 } bitBoardType;
 
-typedef struct { //struct contenente varie informazioni irreversibili di una posizione
+struct positionCharacteristics { //struct contenente varie informazioni irreversibili di una posizione
 	bool whiteLongCastleRights;
 	bool whiteShortCastleRights;
 	bool blackLongCastleRights;
@@ -26,7 +26,7 @@ typedef struct { //struct contenente varie informazioni irreversibili di una pos
 	int fullMoveClock;
 	int prevPieceOnEndSquare;
 	int colorOfPrevPieceOnEndSquare;
-} positionCharacteristics;
+};
 
 class Board {
 public:
@@ -37,6 +37,7 @@ public:
 	static bool isValidMove(std::string move); //metodo per controllare se un token sia effettivamente una mossa valida (vedi formato algebrico puro per le mosse valide)
 	static std::shared_ptr<uint64_t[]> getBitBoards();
 	static void unmakeMove(int startSquare, int endSquare, char promotionPiece); //metodo che consente di annullare l'ultima mossa effettuata
+	static void unmakeMove(int startSquare, int endSquare, char promotionPiece, positionCharacteristics& previousPositionInfo); //overload della funzione unmakeMove, che consente di fornire le caratteristiche irreversibili della posizione precedente
 
 	static uint64_t rookMoves(int startSquare, uint64_t blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per una data torre
 	static uint64_t bishopMoves(int startSquare, uint64_t blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per un dato alfiere
@@ -44,6 +45,8 @@ public:
 	static uint64_t kingMoves(int startSquare); //metodo che consente di generare le mosse pseudo-legali per il re
 	static uint64_t knightMoves(int startSquare); //metodo che consente di generare le mosse pseudo-legali per il cavallo
 	static uint64_t pawnMoves(int startSquare, uint64_t blockerBitboard, bool isWhite); //metodo per generare le mosse pseudo-legali per il pedone
+
+	static uint64_t getBitboard(int bitboardIndex); //metodo che consente di ottenere una certa bitboard
 	
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
