@@ -41,30 +41,26 @@ struct EngineData {
 };
 
 struct Move {
-	int startSquare, endSquare;
-	char promotionPiece;
+	uint16_t move; //i primi 6 bit di questo intero contengono la casella di partenza (a partire da sinistra), i seguenti 6 codificano la casella di arrivo ed i seguenti 3 codificano l'eventuale promozione
 };
 
-/*
-Struct contenente una posizione, ovvero un nodo dell'albero di gioco.
-*/
-struct Position { 
-	uint64_t positionBitboards[nBitboards]; //bitboard rappresentative della posizione
-	positionCharacteristics previousPositionInfo; //informazioni relative alla posizione da cui è derivata questa posizione
-	std::vector<Position*> childrenpositions; //vettore in cui sono memorizzati i puntatori alle posizioni derivate dalla posizione precedente
-	Position* fatherPosition; //posizione da cui è derivata questa posizione
-	Move moveToGetHere; //mossa grazie a cui è stato possibile arrivare a questa posizione
+enum MoveOffsets { //enum in cui sono memorizzate le costanti di cui è necessario rightshiftare l'intero di 16 bit contenente una mossa per accedere alle varie informazioni sulla mossa stessa
+	moveStartSquareOffset = 0,
+	moveEndSquareOffset = 6,
+	movePromotionPieceOffset = 12
+};
+
+enum PromotionPiece { //enum contenente i codici relativi alla promozione ad un pezzo specifico
+	none = 0,
+	queen = 1,
+	knight = 2,
+	bishop = 3,
+	rook = 4
 };
 
 namespace Engine {
 	void engineInit(); //riporta il motore allo stato iniziale
 	void startSearchAndEval(); //dai il via al processo di ricerca e valutazione
-	void generateMoves(int level); //genera tutte le possibili mosse della posizione corrente
-	void printMoves(); //funzione per stampare l'elenco di mosse da valutare
 
 	extern EngineData engineData;
-	extern std::vector<Move> movesToEvaluate; //vettore contenente le mosse da valutare relative ad una data posizione
-	extern Position rootPosition; //posizione iniziale della ricerca corrente
 };
-
-

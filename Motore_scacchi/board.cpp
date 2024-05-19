@@ -8,40 +8,64 @@
 
 
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
-positionCharacteristics Board::m_prevChars;
+std::stack<uint32_t> Board::m_previousPositionCharacteristics;
 
 void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>[<promotion>]
-	int startSquare, endSquare;
-	char promotionPiece;
+	int startSquare, endSquare, promotionPiece;
+	uint16_t moveOut = 0;
 
+	//estrazione di quadrato di partenza, quadrato di arrivo ed eventuale promozione dall'int che rappresenta la mossa
 	startSquare = move[0] - 'a' + (move[1] - '1') * 8;
 	endSquare = move[2] - 'a' + (move[3] - '1') * 8;
 	
 	if (move.length() == 5) {
-		promotionPiece = move[4];
+		switch (move[4]) {
+		case 'q': {
+			promotionPiece = queen;
+			break;
+		}
+		case 'n': {
+			promotionPiece = knight;
+			break;
+		}
+		case 'r': {
+			promotionPiece = rook;
+			break;
+		}
+		case 'b': {
+			promotionPiece = queen;
+			break;
+		}
+		}
 	}
 	else {
-		promotionPiece = -1;
+		promotionPiece = none;
 	}
 
-	makeMove(startSquare, endSquare, promotionPiece);
+	moveOut = ((moveOut | startSquare) | (endSquare << moveEndSquareOffset)) | (promotionPiece << movePromotionPieceOffset);
+
+	makeMove(moveOut);
 }
 
-void Board::makeMove(int startSquare, int endSquare, char promotionPiece) { 
+void Board::makeMove(uint16_t move) { 
 	int bitboardIndexStart, bitboardIndexEnd = -1;
 	int pieceColorStart, pieceColorEnd;
+	uint32_t previousPositionCharacteristics = 0; //intero da 32 bit contenente le informazioni relative alla posizione precedente
+
+	int startSquare = move & 63;
+	int endSquare = (move >> moveEndSquareOffset) & 63;
+	int promotionPiece = (move >> movePromotionPieceOffset) & 7;
 
 	//prima di fare effettivamente la mossa, salva le caratteristiche irreversibili della posizione corrente per poter poi ritornare a questa posizione
-	m_prevChars.blackLongCastleRights = Engine::engineData.m_blackCanCastleLong;
-	m_prevChars.blackShortCastleRights = Engine::engineData.m_blackCanCastleShort;
-	m_prevChars.whiteLongCastleRights = Engine::engineData.m_whiteCanCastleLong;
-	m_prevChars.whiteShortCastleRights = Engine::engineData.m_whiteCanCastleShort;
-	m_prevChars.isWhite = Engine::engineData.m_isWhite;
+	previousPositionCharacteristics |= (Engine::engineData.m_blackCanCastleLong << blackLongCastleRightsOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_blackCanCastleShort << blackShortCastleRightsOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_whiteCanCastleLong << whiteLongCastleRightsOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_whiteCanCastleShort << whiteShortCastleRightsOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_isWhite << isWhiteOffset);
 
-	m_prevChars.halfMoveClock = Engine::engineData.m_halfMoveClock;
-	m_prevChars.fullMoveClock = Engine::engineData.m_fullMoveClock;
-	m_prevChars.enPassantTargetSquare = Engine::engineData.m_enPassantSquare;
-	m_prevChars.prevPieceOnEndSquare = -1;
+	previousPositionCharacteristics |= (Engine::engineData.m_halfMoveClock << halfMoveClockOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_fullMoveClock << fullMoveClockOffset);
+	previousPositionCharacteristics |= (Engine::engineData.m_enPassantSquare << enPassantTargetSquareOffset);
 
 	for (int i = 0; i < nBitboards; i++) { //grazie a questo ciclo for posso identificare di che tipo il pezzo sulla casella di partenza e quello sulla casella di arrivo sono
 		if ((m_bitBoards[i] >> startSquare) & 1) { 
@@ -59,8 +83,8 @@ void Board::makeMove(int startSquare, int endSquare, char promotionPiece) {
 	}
 
 	if (bitboardIndexEnd != -1) { // se c'e' un pezzo nella casella di arrivo lo tolgo (è una cattura) e salvo questa informazione per poter tornare indietro
-		m_prevChars.prevPieceOnEndSquare = bitboardIndexEnd;
-		m_prevChars.colorOfPrevPieceOnEndSquare = !pieceColorStart;
+		previousPositionCharacteristics |= (bitboardIndexEnd << prevPieceOnEndSquareOffset);
+		previousPositionCharacteristics |= (!pieceColorStart << colorOfPrevePieceOnEndSquareOffset);
 
 		pieceColorEnd = !pieceColorStart; //ovvero prendi il colore opposto a quello dela casella di partenza, in quanto non è legale catturare il proprio pezzo
 		m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] ^ ((uint64_t)1 << endSquare); 
@@ -70,24 +94,24 @@ void Board::makeMove(int startSquare, int endSquare, char promotionPiece) {
 	m_bitBoards[pieceColorStart] = (m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //aggiornamento della bitboard relativa al colore del pezzo mosso
 	m_bitBoards[bitboardIndexStart] = (m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)); //tolgo il pezzo dalla sua casella precedente
 
-	if (promotionPiece != -1) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
+	if (promotionPiece != none) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
 		switch (promotionPiece) { //controllo a che tipo di pezzo il pedone è stato promosso
-		case 'q': {
+		case queen: {
 			bitboardIndexStart = nQueens;
 			break;
 		}
 
-		case 'r': {
+		case rook: {
 			bitboardIndexStart = nRooks;
 			break;
 		}
 
-		case 'n': {
+		case knight: {
 			bitboardIndexStart = nKnights;
 			break;
 		}
 
-		case 'b': {
+		case bishop: {
 			bitboardIndexStart = nBishops;
 			break;
 		}
@@ -102,7 +126,7 @@ void Board::makeMove(int startSquare, int endSquare, char promotionPiece) {
 		
 
 		if (endSquare == Engine::engineData.m_enPassantSquare && bitboardIndexStart == nPawns) { //se la mossa che è appena stata fatta e' un en passant
-			Engine::engineData.m_enPassantSquare = -1;
+			Engine::engineData.m_enPassantSquare = 64;
 
 			if (pieceColorStart == nBlack) { //se il pezzo che si è mosso è nero, il pezzo da rimuovere risiederà nella riga sopra rispetto alla casella di arrivo del pedone che si è mosso
 				m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare + 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
@@ -138,7 +162,7 @@ void Board::makeMove(int startSquare, int endSquare, char promotionPiece) {
 	}
 
 	//aggiornamento relativo alle informazioni sulla posizione corrente, dopo aver eseguito la mossa
-	Engine::engineData.m_enPassantSquare = -1;
+	Engine::engineData.m_enPassantSquare = 64;
 
 	if (bitboardIndexStart == nPawns && abs(startSquare - endSquare) == 16) { //se un pedone è stato spinto di due quadrati, segnalo in quale casella e' possibile fare en passant
 		if (pieceColorStart == nWhite) {
@@ -179,10 +203,12 @@ void Board::makeMove(int startSquare, int endSquare, char promotionPiece) {
 		}
 	}
 
+	m_previousPositionCharacteristics.push(previousPositionCharacteristics);
+
 	Engine::engineData.m_isWhite = !Engine::engineData.m_isWhite;
 	//std::cout << "Deve giocare il bianco: " << Engine::engineData.m_isWhite << std::endl;
 	BoardHelper::printBoard();
-	//unmakeMove(startSquare, endSquare, promotionPiece); //solo per fini di debug
+	//unmakeMove(move); //solo per fini di debug
 }
 
 void Board::resetBoard() {
@@ -192,6 +218,7 @@ void Board::resetBoard() {
 void Board::setPosition(std::string fenstring) {
 	std::vector<std::string> fenSplit = uciHandler::split(fenstring);
 	int rank = 7, column = 0;
+	uint32_t previousPositionInfo = 0;
 
 	for (int i = 0; i < nBitboards; i++) { //prima di impostare ogni posizione è necessario pulire tutte le bitboard, in quanto se ciò non viene fatto la posizione attuale verrà "sovrapposta" alla posizione precedente
 		m_bitBoards[i] = 0;
@@ -286,11 +313,11 @@ void Board::setPosition(std::string fenstring) {
 
 	if (fenSplit[1][0] == 'w') {
 		Engine::engineData.m_isWhite = true;
-		m_prevChars.isWhite = true;
+		previousPositionInfo |= (1 << isWhiteOffset);
 	}
 	else {
 		Engine::engineData.m_isWhite = false;
-		m_prevChars.isWhite = false;
+		previousPositionInfo |= (0 << isWhiteOffset);
 	}
 
 	//std::cout << "Gioca il bianco? " << Engine::getIsWhite() << std::endl;
@@ -332,7 +359,7 @@ void Board::setPosition(std::string fenstring) {
 	//std::cout << "Il nero puo' arroccare corto: " << Engine::getBlackShortCastleRight() << std::endl;
 
 	if (fenSplit[3].size() == 1) {
-		Engine::engineData.m_enPassantSquare = -1; //-1 equivale a dire che non è possibile effettuare un en passant
+		Engine::engineData.m_enPassantSquare = 64; //64 equivale a dire che non è possibile effettuare un en passant
 		//std::cout << "Non e' possibile fare en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 	else {
@@ -345,6 +372,8 @@ void Board::setPosition(std::string fenstring) {
 
 	Engine::engineData.m_fullMoveClock = std::stoi(fenSplit[5]);
 	//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
+
+	m_previousPositionCharacteristics.push(previousPositionInfo);
 }
 
 bool Board::isValidMove(std::string move) {
@@ -380,19 +409,27 @@ uint64_t Board::allPiecesBitboard() {
 	return out;
 }
 
-void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece) {
+void Board::unmakeMove(uint16_t move) {
 	int pieceColor, pieceType;
 
-	//reimposto le caratteristiche irreversibili della posizione
-	Engine::engineData.m_whiteCanCastleLong = m_prevChars.whiteLongCastleRights;
-	Engine::engineData.m_whiteCanCastleShort = m_prevChars.whiteShortCastleRights;
-	Engine::engineData.m_blackCanCastleLong = m_prevChars.blackLongCastleRights;
-	Engine::engineData.m_blackCanCastleShort = m_prevChars.blackShortCastleRights;
-	Engine::engineData.m_isWhite = m_prevChars.isWhite;
+	int startSquare = move & 63;
+	int endSquare = (move >> moveEndSquareOffset) & 63;
+	int promotionPiece = (move >> movePromotionPieceOffset) & 7;
 
-	Engine::engineData.m_enPassantSquare = m_prevChars.enPassantTargetSquare;
-	Engine::engineData.m_halfMoveClock = m_prevChars.halfMoveClock;
-	Engine::engineData.m_fullMoveClock = m_prevChars.fullMoveClock;
+	//recupera le informazioni relative alla posizione precedente e rimuovile dallo stack relativo
+	uint32_t previousPositionCharacteristics = m_previousPositionCharacteristics.top();
+	m_previousPositionCharacteristics.pop();
+
+	//reimposto le caratteristiche irreversibili della posizione
+	Engine::engineData.m_whiteCanCastleLong = (previousPositionCharacteristics >> whiteLongCastleRightsOffset) & 1;
+	Engine::engineData.m_whiteCanCastleShort = (previousPositionCharacteristics >> whiteShortCastleRightsOffset) & 1;
+	Engine::engineData.m_blackCanCastleLong = (previousPositionCharacteristics >> blackLongCastleRightsOffset) & 1;
+	Engine::engineData.m_blackCanCastleShort = (previousPositionCharacteristics >> blackShortCastleRightsOffset) & 1;
+	Engine::engineData.m_isWhite = (previousPositionCharacteristics >> isWhiteOffset) & 1;
+
+	Engine::engineData.m_enPassantSquare = (previousPositionCharacteristics >> enPassantTargetSquareOffset) & 127;
+	Engine::engineData.m_halfMoveClock = (previousPositionCharacteristics >> halfMoveClockOffset) & 127;
+	Engine::engineData.m_fullMoveClock = (previousPositionCharacteristics >> fullMoveClockOffset) & 127;
 
 	//il colore del pezzo che si è mosso è uguale al colore del giocatore che doveva giocare nella mossa precedente
 	if (Engine::engineData.m_isWhite) {
@@ -414,12 +451,12 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece) {
 	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
 
 	//reinserisco un eventuale pezzo catturato durante la mossa precedente
-	if (m_prevChars.prevPieceOnEndSquare != -1) {
-		m_bitBoards[m_prevChars.prevPieceOnEndSquare] = m_bitBoards[m_prevChars.prevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
-		m_bitBoards[m_prevChars.colorOfPrevPieceOnEndSquare] = m_bitBoards[m_prevChars.colorOfPrevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+	if (((previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & 7) != 0) {
+		m_bitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & 7] = m_bitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & 7] | ((uint64_t)1 << endSquare);
+		m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & 7] = m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & 7] | ((uint64_t)1 << endSquare);
 	}
 
-	if (promotionPiece != -1) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
+	if (promotionPiece != none) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
 		pieceType = nPawns;
 	}
 
@@ -686,19 +723,19 @@ uint64_t Board::pawnMoves(int startSquare, uint64_t blockerBitboard, bool isWhit
 	return moves;
 }
 
-void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, positionCharacteristics& previousPositionInfo) {
+void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, uint32_t previousPositionInfo) {
 	int pieceColor, pieceType;
 
 	//reimposto le caratteristiche irreversibili della posizione
-	Engine::engineData.m_whiteCanCastleLong = previousPositionInfo.whiteLongCastleRights;
-	Engine::engineData.m_whiteCanCastleShort = previousPositionInfo.whiteShortCastleRights;
-	Engine::engineData.m_blackCanCastleLong = previousPositionInfo.blackLongCastleRights;
-	Engine::engineData.m_blackCanCastleShort = previousPositionInfo.blackShortCastleRights;
-	Engine::engineData.m_isWhite = previousPositionInfo.isWhite;
+	Engine::engineData.m_whiteCanCastleLong = (previousPositionInfo >> whiteLongCastleRightsOffset) & 1;
+	Engine::engineData.m_whiteCanCastleShort = (previousPositionInfo >> whiteShortCastleRightsOffset) & 1;
+	Engine::engineData.m_blackCanCastleLong = (previousPositionInfo >> blackLongCastleRightsOffset) & 1;
+	Engine::engineData.m_blackCanCastleShort = (previousPositionInfo >> blackShortCastleRightsOffset) & 1;
+	Engine::engineData.m_isWhite = (previousPositionInfo >> isWhiteOffset) & 1;
 
-	Engine::engineData.m_enPassantSquare = previousPositionInfo.enPassantTargetSquare;
-	Engine::engineData.m_halfMoveClock = previousPositionInfo.halfMoveClock;
-	Engine::engineData.m_fullMoveClock = previousPositionInfo.fullMoveClock;
+	Engine::engineData.m_enPassantSquare = (previousPositionInfo >> enPassantTargetSquareOffset) & 127;
+	Engine::engineData.m_halfMoveClock = (previousPositionInfo >> halfMoveClockOffset) & 127;
+	Engine::engineData.m_fullMoveClock = (previousPositionInfo >> fullMoveClockOffset) & 127;
 
 	//il colore del pezzo che si è mosso è uguale al colore del giocatore che doveva giocare nella mossa precedente
 	if (Engine::engineData.m_isWhite) {
@@ -720,9 +757,9 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, posi
 	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
 
 	//reinserisco un eventuale pezzo catturato durante la mossa precedente
-	if (previousPositionInfo.prevPieceOnEndSquare != -1) {
-		m_bitBoards[previousPositionInfo.prevPieceOnEndSquare] = m_bitBoards[previousPositionInfo.prevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
-		m_bitBoards[previousPositionInfo.colorOfPrevPieceOnEndSquare] = m_bitBoards[previousPositionInfo.colorOfPrevPieceOnEndSquare] | ((uint64_t)1 << endSquare);
+	if (((previousPositionInfo >> prevPieceOnEndSquareOffset) & 7) != 0) {
+		m_bitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & 7] = m_bitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & 7] | ((uint64_t)1 << endSquare);
+		m_bitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & 7] = m_bitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & 7] | ((uint64_t)1 << endSquare);
 	}
 
 	if (promotionPiece != -1) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
@@ -767,4 +804,10 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, posi
 
 uint64_t Board::getBitboard(int bitboardIndex) {
 	return m_bitBoards[bitboardIndex];
+}
+
+void Board::resetPreviousPositionCharacteristics() {
+	while (!m_previousPositionCharacteristics.empty()) {
+		m_previousPositionCharacteristics.pop();
+	}
 }

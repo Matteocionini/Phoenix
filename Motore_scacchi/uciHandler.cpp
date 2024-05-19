@@ -93,13 +93,13 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 			}
 		}
 		else {
-			std::string position = messageSplit[1] + " " + messageSplit[2] + " " + messageSplit[3] + " " + messageSplit[4] + " " + messageSplit[5] + " " + messageSplit[6];
+			std::string position = messageSplit[2] + " " + messageSplit[3] + " " + messageSplit[4] + " " + messageSplit[5] + " " + messageSplit[6] + " " + messageSplit[7];
 			Board::setPosition(position);
 			BoardHelper::printBoard();
 			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
-			if (messageSplit.size() > 7) {
+			if (messageSplit.size() > 8) {
 				int i;
-				for (i = 8; i < messageSplit.size(); i++) {
+				for (i = 9; i < messageSplit.size(); i++) {
 					Board::makeMove(messageSplit[i]);
 					//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
 				}
