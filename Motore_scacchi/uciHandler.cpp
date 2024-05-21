@@ -97,6 +97,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 			Board::setPosition(position);
 			BoardHelper::printBoard();
 			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
+			//Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
 			if (messageSplit.size() > 8) {
 				int i;
 				for (i = 9; i < messageSplit.size(); i++) {

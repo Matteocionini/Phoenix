@@ -40,14 +40,18 @@ struct EngineData {
 	bool m_isWhite; //vero se il motore gioca come il bianco, falso se gioca come il nero. Questa informazione è contenuta nella fenstring della posizione corrente
 };
 
-struct Move {
-	uint16_t move; //i primi 6 bit di questo intero contengono la casella di partenza (a partire da sinistra), i seguenti 6 codificano la casella di arrivo ed i seguenti 3 codificano l'eventuale promozione
-};
-
-enum MoveOffsets { //enum in cui sono memorizzate le costanti di cui è necessario rightshiftare l'intero di 16 bit contenente una mossa per accedere alle varie informazioni sulla mossa stessa
+enum MoveOffsets { //enum in cui sono memorizzate le costanti di cui è necessario rightshiftare l'intero di 16 bit contenente una mossa per accedere alle varie informazioni sulla mossa stessa. In una mossa, i primi 6 bit di questo intero contengono la casella di partenza (a partire da sinistra), i seguenti 6 codificano la casella di arrivo ed i seguenti 3 codificano l'eventuale promozione
 	moveStartSquareOffset = 0,
 	moveEndSquareOffset = 6,
-	movePromotionPieceOffset = 12
+	movePromotionPieceOffset = 12,
+	moveIsCaptureOrCheckOffset = 15 //questo bit, quando è 1, segnala che la mossa è una cattura o mette il re nemico in scacco
+};
+
+enum MoveBitMasks { //raccolta di tutte le possibili bitmask che possono risultare necessarie per fare accesso alle informazioni contenute nell'intero che codifica una mossa
+	moveStartSquareBitmask = 63,
+	moveEndSquareBitMask = 63,
+	movePromotionPieceBitMask = 7,
+	moveIsCaptureOrCheckBitMask = 1
 };
 
 enum PromotionPiece { //enum contenente i codici relativi alla promozione ad un pezzo specifico
@@ -61,6 +65,8 @@ enum PromotionPiece { //enum contenente i codici relativi alla promozione ad un 
 namespace Engine {
 	void engineInit(); //riporta il motore allo stato iniziale
 	void startSearchAndEval(); //dai il via al processo di ricerca e valutazione
+	std::vector<uint16_t> generateLegalMoves(const Position& position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
+	static bool isKingInCheck(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard); //funzione che controlla se nella posizione corrente il re è sotto scacco
 
 	extern EngineData engineData;
 };

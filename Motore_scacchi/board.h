@@ -15,7 +15,7 @@ typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle
 	nRooks
 } bitBoardType;
 
-enum positionCharacteristicsOffset { //enum contenente le quantità di cui è necessario rightshiftare l'intero da 32 bit contenente le informazioni su una posizione precedente
+enum PositionCharacteristicsOffset { //enum contenente le quantità di cui è necessario rightshiftare l'intero da 32 bit contenente le informazioni su una posizione precedente
 	whiteLongCastleRightsOffset = 0,
 	whiteShortCastleRightsOffset = 1,
 	blackLongCastleRightsOffset = 2,
@@ -26,6 +26,23 @@ enum positionCharacteristicsOffset { //enum contenente le quantità di cui è nece
 	fullMoveClockOffset = 19,
 	prevPieceOnEndSquareOffset = 26,
 	colorOfPrevePieceOnEndSquareOffset = 29
+};
+
+enum PositionCharacteristicsBitMasks { //raccolta di tutte le possibili bitmask necessarie per accedere alle informazioni memorizzate negli interi che codificano le informazioni su una posizione precedente
+	whiteLongCastleRightsBitMask = 1,
+	whiteShortCastleRightsBitMask = 1,
+	blackLongCastleRightsBitMask = 1,
+	blackShortCastleRightsBitMask = 1,
+	isWhiteBitMask = 1,
+	enPassantTargetSquareBitMask = 127,
+	halfMoveClockBitMask = 127,
+	fullMoveClockBitMask = 127,
+	prevPieceOnEndSquareBitMask = 7,
+	colorOfPrevPieceOnEndSquareBitMask = 7
+};
+
+struct Position { //struct utilizzato per incapsulare le bitboard relative ad una certa posizione, in modo da poterle ritornare tramite una funzione
+	uint64_t bitboards[8];
 };
 
 class Board {
@@ -47,6 +64,7 @@ public:
 	static uint64_t pawnMoves(int startSquare, uint64_t blockerBitboard, bool isWhite); //metodo per generare le mosse pseudo-legali per il pedone
 
 	static uint64_t getBitboard(int bitboardIndex); //metodo che consente di ottenere una certa bitboard
+	static Position getCurrentPosition(); //metodo che consente di ottenere tutte le bitboard relative alla posizione attuale
 
 	static void resetPreviousPositionCharacteristics();
 	
