@@ -90,6 +90,10 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				}
 				m_lastMove = messageSplit[i - 1];
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+				BoardHelper::printBoard();
+
+				Position pos = Board::getCurrentPosition();
+				Engine::generateLegalMoves(pos, Engine::engineData.m_isWhite);
 			}
 		}
 		else {
@@ -106,6 +110,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				}
 				m_lastMove = messageSplit[i - 1];
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+				BoardHelper::printBoard();
 			}
 		}
 
@@ -182,6 +187,12 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 			else if (messageSplit[i] == "infinite") {
 				Engine::engineData.m_infinite = true;
 				//std::cout << "Modalita infinite: " << Engine::engineData.m_infinite << std::endl;
+			}
+			else if (messageSplit[i] == "perft") {
+				std::cout << "\n";
+				uint64_t totNodi = Engine::perft(std::stoi(messageSplit[i + 1]), true);
+				std::cout << "\nNumero totale di nodi: " << totNodi << "\n\n";
+				return;
 			}
 		}
 		Engine::startSearchAndEval();

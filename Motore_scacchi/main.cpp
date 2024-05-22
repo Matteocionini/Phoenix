@@ -6,12 +6,13 @@
 #include "uciHandler.h"
 #include "engineUtils.h"
 #include "engine.h"
+#include "boardHelper.h"
 
 //variabili globali condivise in tutto il programma
 std::mutex mtxReady;
 bool isReady = true;
 
-//TODO: implementare le magic bitboard e la generazione delle mosse
+//TODO: finire di debuggare la generazione delle mosse
 
 int main(){
     std::ofstream log;

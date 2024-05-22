@@ -44,14 +44,14 @@ enum MoveOffsets { //enum in cui sono memorizzate le costanti di cui è necessari
 	moveStartSquareOffset = 0,
 	moveEndSquareOffset = 6,
 	movePromotionPieceOffset = 12,
-	moveIsCaptureOrCheckOffset = 15 //questo bit, quando è 1, segnala che la mossa è una cattura o mette il re nemico in scacco
+	moveIsCaptureOrCheckOrPromotionOffset = 15 //questo bit, quando è 1, segnala che la mossa è una cattura o mette il re nemico in scacco
 };
 
 enum MoveBitMasks { //raccolta di tutte le possibili bitmask che possono risultare necessarie per fare accesso alle informazioni contenute nell'intero che codifica una mossa
 	moveStartSquareBitmask = 63,
 	moveEndSquareBitMask = 63,
 	movePromotionPieceBitMask = 7,
-	moveIsCaptureOrCheckBitMask = 1
+	moveIsCaptureOrCheckOrPromotionBitMask = 1
 };
 
 enum PromotionPiece { //enum contenente i codici relativi alla promozione ad un pezzo specifico
@@ -65,8 +65,17 @@ enum PromotionPiece { //enum contenente i codici relativi alla promozione ad un 
 namespace Engine {
 	void engineInit(); //riporta il motore allo stato iniziale
 	void startSearchAndEval(); //dai il via al processo di ricerca e valutazione
-	std::vector<uint16_t> generateLegalMoves(const Position& position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
-	static bool isKingInCheck(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard); //funzione che controlla se nella posizione corrente il re è sotto scacco
+
+	std::shared_ptr<std::vector<uint16_t>> generateLegalMoves(const Position& position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
+	std::vector<uint16_t> getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare); //funzione che, a partire da una bitboard fornita da una funzione di generazione mosse pseudolegali, genera le mosse effettivamente legali
+	uint64_t perft(int depth, bool first); //funzione di test della performance e della correttezza del sistema di generazione mosse
+
+	//funzioni helper
+	bool isKingInCheck(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard, int kingSquare); //funzione che controlla se nella posizione corrente il re è sotto scacco
+	bool kingCanCastleLong(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard); //funzione usata per verificare se l'arrocco lungo è legale
+	bool kingCanCastleShort(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard); //funzione usata per verificare se l'arrocco corto è legale
+	bool lastMoveWasCaptureOrCheck(const bool& isWhite, const Position& positionAfterMove, const int& friendlyPieces); //funzione che permette di controllare se la mossa appena fatta mette sotto scacco il re avversario
+	
 
 	extern EngineData engineData;
 };

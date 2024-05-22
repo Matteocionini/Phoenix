@@ -47,7 +47,7 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 	makeMove(moveOut);
 }
 
-void Board::makeMove(uint16_t move) { 
+void Board::makeMove(const uint16_t& move) { 
 	int bitboardIndexStart, bitboardIndexEnd = -1;
 	int pieceColorStart, pieceColorEnd;
 	uint32_t previousPositionCharacteristics = 0; //intero da 32 bit contenente le informazioni relative alla posizione precedente
@@ -207,7 +207,7 @@ void Board::makeMove(uint16_t move) {
 
 	Engine::engineData.m_isWhite = !Engine::engineData.m_isWhite;
 	//std::cout << "Deve giocare il bianco: " << Engine::engineData.m_isWhite << std::endl;
-	BoardHelper::printBoard();
+	//BoardHelper::printBoard();
 	//unmakeMove(move); //solo per fini di debug
 }
 
@@ -409,7 +409,7 @@ uint64_t Board::allPiecesBitboard() {
 	return out;
 }
 
-void Board::unmakeMove(uint16_t move) {
+void Board::unmakeMove(const uint16_t& move) {
 	int pieceColor, pieceType;
 
 	int startSquare = move & moveStartSquareBitmask;
@@ -493,10 +493,10 @@ void Board::unmakeMove(uint16_t move) {
 		}
 	}
 
-	BoardHelper::printBoard();
+	//BoardHelper::printBoard();
 }
 
-uint64_t Board::rookMoves(int startSquare, uint64_t blockerBitboard) {
+uint64_t Board::rookMoves(const int& startSquare, const uint64_t& blockerBitboard) {
 	uint64_t moves = 0;
 	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui la torre può muoversi
 
@@ -534,14 +534,14 @@ uint64_t Board::rookMoves(int startSquare, uint64_t blockerBitboard) {
 	return moves;
 }
 
-uint64_t Board::bishopMoves(int startSquare, uint64_t blockerBitboard) {
+uint64_t Board::bishopMoves(const int& startSquare, const uint64_t& blockerBitboard) {
 	uint64_t moves = 0;
 	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui l'alfiere può muoversi
 
 	if (startSquare != 7 && startSquare != 15 && startSquare != 23 && startSquare != 31 && startSquare != 39 && startSquare != 48 && startSquare != 56 && startSquare != 63) {
 		for (currSquare = startSquare + 9; currSquare <= 63; currSquare += 9) { //movimento in diagonale verso destra e verso l'alto
 			moves = moves | ((uint64_t)1 << currSquare);
-			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare == 7 || currSquare == 15 || currSquare == 23 || currSquare == 31 || currSquare == 39 || currSquare == 48 || currSquare == 56 || currSquare == 63) {
+			if (((blockerBitboard >> currSquare) & 1) == 1 || (currSquare + 1) % 8 == 0) {
 				break;
 			}
 		}
@@ -568,7 +568,7 @@ uint64_t Board::bishopMoves(int startSquare, uint64_t blockerBitboard) {
 	if ((startSquare + 1) % 8 != 0) {
 		for (currSquare = startSquare - 7; currSquare >= 0; currSquare -= 7) { //movimento in diagonale verso il basso e verso destra
 			moves = moves | ((uint64_t)1 << currSquare);
-			if (((blockerBitboard >> currSquare) & 1) == 1 || currSquare == 7 || currSquare == 15 || currSquare == 23 || currSquare == 31 || currSquare == 39 || currSquare == 48 || currSquare == 56 || currSquare == 63) {
+			if (((blockerBitboard >> currSquare) & 1) == 1 || (currSquare + 1) % 8 == 0) {
 				break;
 			}
 		}
@@ -579,15 +579,15 @@ uint64_t Board::bishopMoves(int startSquare, uint64_t blockerBitboard) {
 	return moves;
 }
 
-uint64_t Board::queenMoves(int startSquare, uint64_t blockerBitboard) {
+uint64_t Board::queenMoves(const int& startSquare, const uint64_t& blockerBitboard) {
 	uint64_t moves = bishopMoves(startSquare, blockerBitboard) | rookMoves(startSquare, blockerBitboard);
 
-	BoardHelper::printLegalMoves(moves);
+	//BoardHelper::printLegalMoves(moves);
 
 	return moves;
 }
 
-uint64_t Board::kingMoves(int startSquare) {
+uint64_t Board::kingMoves(const int& startSquare) {
 	uint64_t moves = 0;
 
 	if (startSquare > 7) {
@@ -622,7 +622,7 @@ uint64_t Board::kingMoves(int startSquare) {
 	return moves;
 }
 
-uint64_t Board::knightMoves(int startSquare) {
+uint64_t Board::knightMoves(const int& startSquare) {
 	uint64_t moves = 0;
 
 	if (startSquare < 48) {
@@ -670,7 +670,7 @@ uint64_t Board::knightMoves(int startSquare) {
 	return moves;
 }
 
-uint64_t Board::pawnMoves(int startSquare, uint64_t blockerBitboard, bool isWhite) {
+uint64_t Board::pawnMoves(const int& startSquare, const uint64_t& blockerBitboard, const bool& isWhite) {
 	uint64_t moves = 0;
 
 	if (startSquare % 8 != 0) {
