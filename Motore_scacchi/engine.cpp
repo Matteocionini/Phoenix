@@ -66,10 +66,10 @@ void Engine::startSearchAndEval() {
 	Board::resetPreviousPositionCharacteristics();
 }
 
-std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position& position, bool isWhite) {
+std::vector<uint16_t> Engine::generateLegalMoves(const Position& position, bool isWhite) {
 	uint64_t blockerBitboard = 0; //bitboard contenente tutti i pezzi sulla scacchiera, da passare alle varie funzioni di generazione mosse per generare le mosse pseudolegali
 	int friendlyPieces = isWhite ? nWhite : nBlack; //variabile utilizzata per sapere quale tra la bitboard dei pezzi neri e quella dei pezzi bianchi è da considerare come bitboard dei pezzi alleati
-	std::shared_ptr<std::vector<uint16_t>> moveList(new std::vector<uint16_t>); //lista delle mosse legali generate. E' necessario che questo vettore sia allocato sull'heap in quanto può anche diventare molto grande
+	std::vector<uint16_t> moveList; //lista delle mosse legali generate. E' necessario che questo vettore sia allocato sull'heap in quanto può anche diventare molto grande
 	uint64_t currentBitboard; //bitboard corrente che si sta considerando per generare le mosse
 	uint64_t moves; //bitboard utilizzata per memorizzare temporaneamente le mosse generate da una specifica funzione di generazione mosse pseudo-legali
 	int kingSquare; //bitboard utilizzata per memorizzare la casella in cui si trova il re
@@ -78,7 +78,7 @@ std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position
 
 	
 
-	moveList->reserve(sizeof(uint16_t) * 50000);
+	moveList.reserve(sizeof(uint16_t) * 300);
 
 	for (kingSquare = 0; kingSquare < 64; kingSquare++) { //ciclo che va alla ricerca della casella contenente il re
 		if (((position.bitboards[nKings] & position.bitboards[friendlyPieces]) >> kingSquare) & 1) {
@@ -136,7 +136,7 @@ std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position
 
 			std::vector<uint16_t> legalMoves = getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, i, isWhite, kingSquare); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
 
-			moveList->insert(moveList->end(), legalMoves.begin(), legalMoves.end()); //aggiungo le mosse appena generate alla lista totale di mosse legali
+			moveList.insert(moveList.end(), legalMoves.begin(), legalMoves.end()); //aggiungo le mosse appena generate alla lista totale di mosse legali
 		}
 		}
 	}
@@ -158,7 +158,7 @@ std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position
 			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
 		}
 
-		moveList->push_back(move);
+		moveList.push_back(move);
 	}
 
 	if (kingCanCastleShort(isWhite, position, friendlyPieces, blockerBitboard)) {
@@ -174,7 +174,7 @@ std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position
 			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
 		}
 
-		moveList->push_back(move);
+		moveList.push_back(move);
 	}
 
 	return moveList;
@@ -182,7 +182,7 @@ std::shared_ptr<std::vector<uint16_t>> Engine::generateLegalMoves(const Position
 
 uint64_t Engine::perft(int depth, bool first) {
 	uint64_t moveCount = 0; //contatore delle mosse generate fin'ora
-	std::shared_ptr<std::vector<uint16_t>> generatedMoves(new std::vector<uint16_t>); //vettore in cui memorizzo le ultime mosse generate
+	std::vector<uint16_t> generatedMoves; //vettore in cui memorizzo le ultime mosse generate
 	uint64_t count;
 
 	if (depth == 0) {
@@ -191,7 +191,7 @@ uint64_t Engine::perft(int depth, bool first) {
 
 	generatedMoves = Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
 
-	for (uint16_t move : *generatedMoves) {
+	for (uint16_t move : generatedMoves) {
 		Board::makeMove(move);
 		count = perft(depth - 1, false);
 		moveCount += count;

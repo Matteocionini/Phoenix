@@ -66,7 +66,7 @@ namespace Engine {
 	void engineInit(); //riporta il motore allo stato iniziale
 	void startSearchAndEval(); //dai il via al processo di ricerca e valutazione
 
-	std::shared_ptr<std::vector<uint16_t>> generateLegalMoves(const Position& position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
+	std::vector<uint16_t> generateLegalMoves(const Position& position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
 	std::vector<uint16_t> getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare); //funzione che, a partire da una bitboard fornita da una funzione di generazione mosse pseudolegali, genera le mosse effettivamente legali
 	uint64_t perft(int depth, bool first); //funzione di test della performance e della correttezza del sistema di generazione mosse
 

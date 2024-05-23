@@ -538,7 +538,7 @@ uint64_t Board::bishopMoves(const int& startSquare, const uint64_t& blockerBitbo
 	uint64_t moves = 0;
 	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui l'alfiere può muoversi
 
-	if (startSquare != 7 && startSquare != 15 && startSquare != 23 && startSquare != 31 && startSquare != 39 && startSquare != 48 && startSquare != 56 && startSquare != 63) {
+	if ((startSquare + 1) % 8 != 0) {
 		for (currSquare = startSquare + 9; currSquare <= 63; currSquare += 9) { //movimento in diagonale verso destra e verso l'alto
 			moves = moves | ((uint64_t)1 << currSquare);
 			if (((blockerBitboard >> currSquare) & 1) == 1 || (currSquare + 1) % 8 == 0) {
