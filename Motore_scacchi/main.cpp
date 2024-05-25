@@ -7,6 +7,7 @@
 #include "engineUtils.h"
 #include "engine.h"
 #include "boardHelper.h"
+#include "memoryPool.h"
 
 //variabili globali condivise in tutto il programma
 std::mutex mtxReady;

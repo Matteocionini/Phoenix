@@ -70,6 +70,8 @@ public:
 
 	static std::stack<uint32_t> m_previousPositionCharacteristics; //stack contenente int da 32 bit contenente le caratteristiche irreversibili di una data posizione
 	
+	static bool findInconsistency(Position prevPos, Position newPos);
+
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 	static uint64_t allPiecesBitboard();

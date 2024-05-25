@@ -33,6 +33,12 @@
     <ClCompile Include="boardHelper.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="memoryPool.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="moveArray.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="logger.h">
@@ -51,6 +57,12 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="boardHelper.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="memoryPool.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="moveArray.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
   </ItemGroup>

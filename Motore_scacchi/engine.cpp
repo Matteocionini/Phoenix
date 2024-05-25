@@ -2,6 +2,8 @@
 #include <memory>
 
 #include "engine.h"
+#include "boardHelper.h"
+
 
 EngineData Engine::engineData; //struct contenente i dati del motore
 
@@ -66,19 +68,16 @@ void Engine::startSearchAndEval() {
 	Board::resetPreviousPositionCharacteristics();
 }
 
-std::vector<uint16_t> Engine::generateLegalMoves(const Position& position, bool isWhite) {
+moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 	uint64_t blockerBitboard = 0; //bitboard contenente tutti i pezzi sulla scacchiera, da passare alle varie funzioni di generazione mosse per generare le mosse pseudolegali
 	int friendlyPieces = isWhite ? nWhite : nBlack; //variabile utilizzata per sapere quale tra la bitboard dei pezzi neri e quella dei pezzi bianchi è da considerare come bitboard dei pezzi alleati
-	std::vector<uint16_t> moveList; //lista delle mosse legali generate. E' necessario che questo vettore sia allocato sull'heap in quanto può anche diventare molto grande
+	moveArray moveList; //lista delle mosse legali generate
 	uint64_t currentBitboard; //bitboard corrente che si sta considerando per generare le mosse
 	uint64_t moves; //bitboard utilizzata per memorizzare temporaneamente le mosse generate da una specifica funzione di generazione mosse pseudo-legali
 	int kingSquare; //bitboard utilizzata per memorizzare la casella in cui si trova il re
 	uint16_t move = 0; //bitboard contenente temporaneamente una mossa
 	int pieceType;
-
-	
-
-	moveList.reserve(sizeof(uint16_t) * 300);
+	moveArray legalMoves; //vettore usato per memorizzare temporaneamente delle mosse
 
 	for (kingSquare = 0; kingSquare < 64; kingSquare++) { //ciclo che va alla ricerca della casella contenente il re
 		if (((position.bitboards[nKings] & position.bitboards[friendlyPieces]) >> kingSquare) & 1) {
@@ -130,13 +129,22 @@ std::vector<uint16_t> Engine::generateLegalMoves(const Position& position, bool 
 				moves = Board::rookMoves(i, blockerBitboard);
 				break;
 			}
+			default: { //se arrivo qui c'è decisamente un problema
+				//std::cout << "Siamo alla casella: " << i << std::endl;
+				//BoardHelper::printLegalMoves(position.bitboards[friendlyPieces]);
+				moves = position.bitboards[friendlyPieces];
+			}
 			}
 
 			moves = moves ^ (position.bitboards[friendlyPieces] & moves); //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili
 
-			std::vector<uint16_t> legalMoves = getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, i, isWhite, kingSquare); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
+			legalMoves.Reset();
 
-			moveList.insert(moveList.end(), legalMoves.begin(), legalMoves.end()); //aggiungo le mosse appena generate alla lista totale di mosse legali
+			getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, i, isWhite, kingSquare, legalMoves); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
+
+			moveList.Append(legalMoves.Begin(), legalMoves.End()); //aggiungo le mosse appena generate alla lista totale di mosse legali
+
+			legalMoves.Reset();
 		}
 		}
 	}
@@ -152,29 +160,31 @@ std::vector<uint16_t> Engine::generateLegalMoves(const Position& position, bool 
 		move |= (none) << movePromotionPieceOffset;
 
 		Board::makeMove(move);
-		Position positionAfterMove;
+		Position positionAfterMove = Board::getCurrentPosition();
+		Board::unmakeMove(move);
 
 		if (lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) {
 			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
 		}
 
-		moveList.push_back(move);
+		moveList.pushBack(move);
 	}
 
 	if (kingCanCastleShort(isWhite, position, friendlyPieces, blockerBitboard)) {
 		move = 0;
-		move |= (kingSquare - 2) << moveEndSquareOffset;
+		move |= (kingSquare + 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
 		move |= (none) << movePromotionPieceOffset;
 
 		Board::makeMove(move);
-		Position positionAfterMove;
+		Position positionAfterMove = Board::getCurrentPosition();
+		Board::unmakeMove(move);
 
 		if (lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) {
 			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
 		}
 
-		moveList.push_back(move);
+		moveList.pushBack(move);
 	}
 
 	return moveList;
@@ -182,8 +192,9 @@ std::vector<uint16_t> Engine::generateLegalMoves(const Position& position, bool 
 
 uint64_t Engine::perft(int depth, bool first) {
 	uint64_t moveCount = 0; //contatore delle mosse generate fin'ora
-	std::vector<uint16_t> generatedMoves; //vettore in cui memorizzo le ultime mosse generate
+	moveArray generatedMoves; //vettore in cui memorizzo le ultime mosse generate
 	uint64_t count;
+	uint16_t move;
 
 	if (depth == 0) {
 		return 1;
@@ -191,7 +202,8 @@ uint64_t Engine::perft(int depth, bool first) {
 
 	generatedMoves = Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
 
-	for (uint16_t move : generatedMoves) {
+	for (int i = 0; i < generatedMoves.getSize(); i++) {
+		move = generatedMoves.getElem(i);
 		Board::makeMove(move);
 		count = perft(depth - 1, false);
 		moveCount += count;
@@ -203,7 +215,33 @@ uint64_t Engine::perft(int depth, bool first) {
 			char rankStartSquare = '1' + (startSquare - (startSquare % 8)) / 8;
 			char fileEndSquare = 'a' + (endSquare % 8);
 			char rankEndSquare = '1' + (endSquare - (endSquare % 8)) / 8;
-			std::cout << fileStartSquare << rankStartSquare << fileEndSquare << rankEndSquare << ": " << count << std::endl;
+			char promotionPiece = -1;
+
+			switch ((move >> movePromotionPieceOffset) & movePromotionPieceBitMask) {
+			case 1: {
+				promotionPiece = 'q';
+				break;
+			}
+			case 2: {
+				promotionPiece = 'n';
+				break;
+			}
+			case 3: {
+				promotionPiece = 'b';
+				break;
+			}
+			case 4: {
+				promotionPiece = 'r';
+				break;
+			}
+			}
+
+			std::cout << fileStartSquare << rankStartSquare << fileEndSquare << rankEndSquare;
+			if (promotionPiece != -1) {
+				std::cout << promotionPiece;
+			}
+
+			std::cout << ": " << count << std::endl;
 		}
 	}
 
@@ -304,6 +342,10 @@ bool Engine::kingCanCastleLong(const bool& isWhite, const Position& position, co
 		return false;
 	}
 
+	//BoardHelper::printBoard();
+
+	//std::cout << "puo' arroccare" << std::endl;
+
 	return true;
 }
 bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard) {
@@ -337,8 +379,7 @@ bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, c
 	return true;
 }
 
-std::vector<uint16_t> Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare) {
-	std::vector<uint16_t> moveList; //vettore che verrà restituito in cui inserisco tutte le mosse legali trovate
+void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare, moveArray& moveList) {
 	uint16_t move = 0; //bitboard in cui costruisco e salvo temporaneamente le mosse legali
 	int actualKingSquare = pieceType == nKings ? -1 : kingSquare;
 
@@ -349,21 +390,30 @@ std::vector<uint16_t> Engine::getLegalMovesFromPossibleSquaresBitboard(const uin
 		}
 		case 1: {
 			if (pieceType == nPawns && ((isWhite && i >= 56) || (!isWhite && i <= 7))) { //se il pezzo che si muove è un pedone che deve essere promosso, genero tutte le promozioni
-				for (int j = 0; j < 5; j++) {
+				for (int j = 1; j < 5; j++) {
 					move = 0;
 					move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
 					move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 					move |= j << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
+					
+					Position posBeforeMove = Board::getCurrentPosition();
 					Board::makeMove(move); //faccio la mossa
 
 					Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
 
 					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
 						move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
-						moveList.push_back(move);
+						moveList.pushBack(move);
 					}
 
 					Board::unmakeMove(move);
+
+					Position posAfterMove = Board::getCurrentPosition();
+
+					if (Board::findInconsistency(posBeforeMove, posAfterMove)) {
+						std::cout << "Problema causato dalla mossa: " << move << std::endl;
+						std::cin.get();
+					}
 				}
 				
 			}
@@ -372,6 +422,16 @@ std::vector<uint16_t> Engine::getLegalMovesFromPossibleSquaresBitboard(const uin
 				move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
 				move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 				move |= none << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
+				
+				/*
+				if (move == 134) {
+					BoardHelper::printLegalMoves(moves);
+					Position pos = Board::getCurrentPosition();
+					BoardHelper::printLegalMoves(pos.bitboards[friendlyPieces]);
+					std::cout << "Piece type: " << pieceType << std::endl;
+				}*/
+				
+				Position posBeforeMove = Board::getCurrentPosition();
 				Board::makeMove(move); //faccio la mossa
 
 				Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
@@ -380,18 +440,23 @@ std::vector<uint16_t> Engine::getLegalMovesFromPossibleSquaresBitboard(const uin
 					if (Engine::lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) { //controllo se la mossa precedente è stata una cattura o ha messo sotto scacco il re avversario, ed in caso lo segno
 						move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
 					}
-					moveList.push_back(move);
+					moveList.pushBack(move);
 				}
 
 				Board::unmakeMove(move);
+
+				Position posAfterMove = Board::getCurrentPosition();
+
+				if (Board::findInconsistency(posBeforeMove, posAfterMove)) {
+					std::cout << "Problema causato dalla mossa: " << move << std::endl;
+					std::cin.get();
+				}
 			}
 			
 			break;
 		}
 		}
 	}
-
-	return moveList;
 }
 
 bool Engine::lastMoveWasCaptureOrCheck(const bool& isWhite, const Position& positionAfterMove, const int& friendlyPieces) {

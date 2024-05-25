@@ -136,6 +136,8 @@
     <ClCompile Include="engine.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="memoryPool.cpp" />
+    <ClCompile Include="moveArray.cpp" />
     <ClCompile Include="uciHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -144,6 +146,8 @@
     <ClInclude Include="engine.h" />
     <ClInclude Include="engineUtils.h" />
     <ClInclude Include="logger.h" />
+    <ClInclude Include="memoryPool.h" />
+    <ClInclude Include="moveArray.h" />
     <ClInclude Include="uciHandler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

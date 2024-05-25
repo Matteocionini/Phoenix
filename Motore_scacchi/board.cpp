@@ -48,7 +48,7 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 }
 
 void Board::makeMove(const uint16_t& move) { 
-	int bitboardIndexStart, bitboardIndexEnd = -1;
+	int bitboardIndexStart = -895, bitboardIndexEnd = -1;
 	int pieceColorStart, pieceColorEnd;
 	uint32_t previousPositionCharacteristics = 0; //intero da 32 bit contenente le informazioni relative alla posizione precedente
 
@@ -92,7 +92,16 @@ void Board::makeMove(const uint16_t& move) {
 	}
 
 	m_bitBoards[pieceColorStart] = (m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //aggiornamento della bitboard relativa al colore del pezzo mosso
+	
+	/*
+	if (bitboardIndexStart == -895) {
+		BoardHelper::printBoard();
+		std::cin.get();
+	}*/
+
 	m_bitBoards[bitboardIndexStart] = (m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)); //tolgo il pezzo dalla sua casella precedente
+	
+
 
 	if (promotionPiece != none) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
 		switch (promotionPiece) { //controllo a che tipo di pezzo il pedone è stato promosso
@@ -138,25 +147,31 @@ void Board::makeMove(const uint16_t& move) {
 			}
 		}
 		else if (bitboardIndexStart == nKings) {
+			if (pieceColorStart == nWhite) {
+				Engine::engineData.m_whiteCanCastleShort = false;
+				Engine::engineData.m_whiteCanCastleLong = false;
+			}
+			else {
+				Engine::engineData.m_blackCanCastleShort = false;
+				Engine::engineData.m_blackCanCastleLong = false;
+			}
+
 			if (startSquare == 4 && endSquare == 6) { //ovvero se la mossa e' un arrocco corto per il bianco
 				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
 				m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
-				Engine::engineData.m_whiteCanCastleShort = false;
 			}
 			else if (startSquare == 4 && endSquare == 2) { //ovvero se la mossa e' un arrocco lungo per il bianco
 				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
 				m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
-				Engine::engineData.m_whiteCanCastleLong = false;
 			}
 			else if (startSquare == 60 && endSquare == 62) { //se la mossa e' un arrocco corto per il nero
 				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
 				m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
-				Engine::engineData.m_blackCanCastleShort = false;
 			}
 			else if (startSquare == 60 && endSquare == 58) { //se la mossa e' un arrocco lungo per il nero
 				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
 				m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
-				Engine::engineData.m_blackCanCastleShort = false;
+
 			}
 		}
 	}
@@ -820,4 +835,13 @@ Position Board::getCurrentPosition() {
 	}
 
 	return position;
+}
+
+bool Board::findInconsistency(Position prevPos, Position newPos) {
+	if ((prevPos.bitboards[nWhite] | prevPos.bitboards[nBlack]) != (newPos.bitboards[nWhite] | newPos.bitboards[nBlack])) {
+		return true;
+	}
+	else {
+		return false;
+	}
 }
