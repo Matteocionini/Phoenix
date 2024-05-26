@@ -1,6 +1,7 @@
 #include <mutex>
 #include <iostream>
 #include <Windows.h>
+#include <chrono>
 
 #include "uciHandler.h"
 #include "engineUtils.h"
@@ -98,16 +99,26 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 		}
 		else {
 			std::string position = messageSplit[2] + " " + messageSplit[3] + " " + messageSplit[4] + " " + messageSplit[5];
-			if (messageSplit.size() > 6) {
+			if (messageSplit.size() > 6 && messageSplit[6] != "moves") {
 				position = position + " " + messageSplit[6] + " " + messageSplit[7];
 			}
 			Board::setPosition(position);
 			BoardHelper::printBoard();
 			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
 			//Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
-			if (messageSplit.size() > 8) {
+			if (messageSplit.size() > 8 && messageSplit[8] == "moves") {
 				int i;
 				for (i = 9; i < messageSplit.size(); i++) {
+					Board::makeMove(messageSplit[i]);
+					//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
+				}
+				m_lastMove = messageSplit[i - 1];
+				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
+				BoardHelper::printBoard();
+			}
+			else if(messageSplit.size() > 6 && messageSplit[6] == "moves") {
+				int i;
+				for (i = 7; i < messageSplit.size(); i++) {
 					Board::makeMove(messageSplit[i]);
 					//std::cout << "Mossa eseguita: " << messageSplit[i] << std::endl;
 				}
@@ -193,8 +204,12 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 			}
 			else if (messageSplit[i] == "perft") {
 				std::cout << "\n";
+				auto start = std::chrono::high_resolution_clock::now();
 				uint64_t totNodi = Engine::perft(std::stoi(messageSplit[i + 1]), true);
-				std::cout << "\nNumero totale di nodi: " << totNodi << "\n\n";
+				auto stop = std::chrono::high_resolution_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+				std::cout << "\nNumero totale di nodi: " << totNodi << "\n";
+				std::cout << "La generazione mosse ha richiesto: " << duration << "\n";
 				return;
 			}
 		}

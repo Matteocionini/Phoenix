@@ -161,14 +161,6 @@ moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 		move |= (kingSquare) << moveStartSquareOffset;
 		move |= (none) << movePromotionPieceOffset;
 
-		Board::makeMove(move);
-		Position positionAfterMove = Board::getCurrentPosition();
-		Board::unmakeMove(move);
-
-		if (lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) {
-			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
-		}
-
 		moveList.pushBack(move);
 	}
 
@@ -177,14 +169,6 @@ moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 		move |= (kingSquare + 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
 		move |= (none) << movePromotionPieceOffset;
-
-		Board::makeMove(move);
-		Position positionAfterMove = Board::getCurrentPosition();
-		Board::unmakeMove(move);
-
-		if (lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) {
-			move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
-		}
 
 		moveList.pushBack(move);
 	}
@@ -384,6 +368,12 @@ bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, c
 void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare, moveArray& moveList) {
 	uint16_t move = 0; //bitboard in cui costruisco e salvo temporaneamente le mosse legali
 	int actualKingSquare = pieceType == nKings ? -1 : kingSquare;
+	uint64_t dangerousSquares = UINT64_MAX; //variabile in cui salvo le caselle pericolose, ovvero le caselle in cui lo spostamento di un pezzo potrebbe lasciare il re soggetto a scacco
+	Position startPos = Board::getCurrentPosition();
+
+	if (pieceType != nKings) {
+		dangerousSquares = 0 | (Board::queenMoves(kingSquare, blockerBitboard) & startPos.bitboards[friendlyPieces]); //dopo questa operazione, nella variabile sono memorizzati i pezzi per cui è necessario controllare se la mossa lascia aperto il re ad uno scacco, in quanto sono i pezzi che attualmente "schermano" il re da potenziali pezzi nemici
+	}
 
 	for (int i = 0; i < 64 && (moves >> i) != 0; i++) { //itero su tutte le caselle della scacchiera
 		switch ((moves >> i) & 1) { //se il quadrato corrente è un quadrato in cui è possibile muovere il pezzo in oggetto
@@ -398,17 +388,38 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 					move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 					move |= j << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 					
-					Position posBeforeMove = Board::getCurrentPosition();
-					Board::makeMove(move); //faccio la mossa
+					if (pieceType == nKings || ((dangerousSquares >> startSquare) & 1)) { //se il pezzo che si sta muovendo è il re o un pezzo che potrebbe potenzialmente lasciare il re sotto scacco
+						Board::makeMove(move); //faccio la mossa
 
-					Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+						Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
 
-					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
-						move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
-						moveList.pushBack(move);
+						if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
+							move |= 1 << moveIsCaptureOrPromotionOffset;
+							moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
+						}
+
+						Board::unmakeMove(move);
 					}
+					else if (!Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali, se il re non si trova in scacco
+						move |= 1 << moveIsCaptureOrPromotionOffset;
+						
+						moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
+						
+					}
+					else { //se il re si trova sotto scacco nella posizione iniziale, la mossa attuale potrebbe essere una cattura del pezzo che tiene il re sotto scacco, quindi faccio la mossa e controllo se la situazione di scacco si è risolta
+						Board::makeMove(move); //faccio la mossa
 
-					Board::unmakeMove(move);
+						Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+
+						if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
+							if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+								move |= 1 << moveIsCaptureOrPromotionOffset;
+							}
+							moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
+						}
+
+						Board::unmakeMove(move);
+					}
 				}
 				
 			}
@@ -418,19 +429,41 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 				move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 				move |= none << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 				
-				Position posBeforeMove = Board::getCurrentPosition();
-				Board::makeMove(move); //faccio la mossa
+				if (pieceType == nKings || ((dangerousSquares >> startSquare) & 1)) { //se il pezzo che si sta muovendo è il re o un pezzo che potrebbe potenzialmente lasciare il re sotto scacco, controllo se la mossa lascia il re in scacco
+					Board::makeMove(move); //faccio la mossa
 
-				Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+					Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
 
-				if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
-					if (Engine::lastMoveWasCaptureOrCheck(isWhite, positionAfterMove, friendlyPieces)) { //controllo se la mossa precedente è stata una cattura o ha messo sotto scacco il re avversario, ed in caso lo segno
-						move |= 1 << moveIsCaptureOrCheckOrPromotionOffset;
+					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
+						if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+							move |= 1 << moveIsCaptureOrPromotionOffset;
+						}
+						moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
 					}
-					moveList.pushBack(move);
-				}
 
-				Board::unmakeMove(move);
+					Board::unmakeMove(move);
+				}
+				else if (!Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali se il re non è in scacco
+					if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+						move |= 1 << moveIsCaptureOrPromotionOffset;
+					}
+
+					moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
+				}
+				else { //se il re si trova sotto scacco nella posizione iniziale, la mossa attuale potrebbe essere una cattura del pezzo che tiene il re sotto scacco, quindi faccio la mossa e controllo se la situazione di scacco si è risolta
+					Board::makeMove(move); //faccio la mossa
+
+					Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+
+					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
+						if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+							move |= 1 << moveIsCaptureOrPromotionOffset;
+						}
+						moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
+					}
+
+					Board::unmakeMove(move);
+				}
 			}
 			
 			break;
@@ -439,6 +472,7 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 	}
 }
 
+/*
 bool Engine::lastMoveWasCaptureOrCheck(const bool& isWhite, const Position& positionAfterMove, const int& friendlyPieces) {
 	if (Engine::isKingInCheck(!isWhite, positionAfterMove, !friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], -1) || ((Board::m_previousPositionCharacteristics.top() >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask)) {
 		return true;
@@ -446,4 +480,4 @@ bool Engine::lastMoveWasCaptureOrCheck(const bool& isWhite, const Position& posi
 	else {
 		return false;
 	}
-}
+}*/

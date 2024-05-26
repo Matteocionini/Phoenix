@@ -205,7 +205,7 @@ void Board::makeMove(const uint16_t& move) {
 			Engine::engineData.m_whiteCanCastleShort = false;
 			//std::cout << "Rimossi tutti i diritti di arrocco del bianco\n";
 		}
-		else if (Engine::engineData.m_blackCanCastleLong || Engine::engineData.m_blackCanCastleShort){
+		else if (pieceColorStart == nBlack && (Engine::engineData.m_blackCanCastleLong || Engine::engineData.m_blackCanCastleShort)){
 			Engine::engineData.m_blackCanCastleLong = false;
 			Engine::engineData.m_blackCanCastleShort = false;
 			//std::cout << "Rimossi tutti i diritti di arrocco del nero\n";
