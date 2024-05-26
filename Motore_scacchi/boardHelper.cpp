@@ -136,3 +136,114 @@ void BoardHelper::printLegalMoves(uint64_t moves) {
 	}
 	std::cout << "---------------------------------" << std::endl;
 }
+
+void BoardHelper::printBoard(Position position) {
+	bitBoardType pieceType, pieceColor;
+
+	std::cout << "\n\n";
+
+	for (int i = 7; i >= 0; i--) {
+		std::cout << "---------------------------------" << std::endl;
+		std::cout << "| ";
+		for (int j = 0; j < 8; j++) {
+			if (((position.bitboards[nPawns] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nPawns;
+			}
+			else if (((position.bitboards[nBishops] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nBishops;
+			}
+			else if (((position.bitboards[nQueens] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nQueens;
+			}
+			else if (((position.bitboards[nKings] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nKings;
+			}
+			else if (((position.bitboards[nKnights] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nKnights;
+			}
+			else if (((position.bitboards[nRooks] >> (i * 8 + j)) & 1) == 1) {
+				pieceType = nRooks;
+			}
+			else {
+				pieceType = nWhite;
+			}
+
+			if (((position.bitboards[nBlack] >> (i * 8 + j)) & 1) == 1) {
+				pieceColor = nBlack;
+			}
+			else {
+				pieceColor = nWhite;
+			}
+
+			switch (pieceType) {
+			case nPawns: {
+				if (pieceColor == nWhite) {
+					std::cout << "P";
+				}
+				else {
+					std::cout << "p";
+				}
+				break;
+			}
+
+			case nBishops: {
+				if (pieceColor == nWhite) {
+					std::cout << "B";
+				}
+				else {
+					std::cout << "b";
+				}
+				break;
+			}
+
+			case nQueens: {
+				if (pieceColor == nWhite) {
+					std::cout << "Q";
+				}
+				else {
+					std::cout << "q";
+				}
+				break;
+			}
+
+			case nKings: {
+				if (pieceColor == nWhite) {
+					std::cout << "K";
+				}
+				else {
+					std::cout << "k";
+				}
+				break;
+			}
+
+			case nKnights: {
+				if (pieceColor == nWhite) {
+					std::cout << "N";
+				}
+				else {
+					std::cout << "n";
+				}
+				break;
+			}
+
+			case nRooks: {
+				if (pieceColor == nWhite) {
+					std::cout << "R";
+				}
+				else {
+					std::cout << "r";
+				}
+				break;
+			}
+
+			default: {
+				std::cout << " ";
+			}
+			}
+
+			std::cout << " | ";
+		}
+		std::cout << std::endl;
+	}
+	std::cout << "---------------------------------" << std::endl;
+}

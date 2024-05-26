@@ -85,9 +85,11 @@ moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 		}
 	}
 
-	for (int i = 0; i <= nBlack; i++) { //per generare la bitboard generale, è sufficiente effettuare un | tra la bitboard contenente i pezzi neri e quella contenente i pezzi bianchi
+	blockerBitboard = position.bitboards[nWhite] | position.bitboards[nBlack];
+
+	/*for (int i = 0; i <= nBlack; i++) { //per generare la bitboard generale, è sufficiente effettuare un | tra la bitboard contenente i pezzi neri e quella contenente i pezzi bianchi
 		blockerBitboard |= position.bitboards[i];
-	}
+	}*/
 
 	//std::cout << "La posizione corrente e' scacco: " << isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard) << std::endl;
 
@@ -130,13 +132,13 @@ moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 				break;
 			}
 			default: { //se arrivo qui c'è decisamente un problema
-				//std::cout << "Siamo alla casella: " << i << std::endl;
+				std::cout << "Siamo alla casella: " << i << std::endl;
 				//BoardHelper::printLegalMoves(position.bitboards[friendlyPieces]);
 				moves = position.bitboards[friendlyPieces];
 			}
 			}
 
-			moves = moves ^ (position.bitboards[friendlyPieces] & moves); //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili
+			moves = moves & (~position.bitboards[friendlyPieces]); //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili
 
 			legalMoves.Reset();
 
@@ -350,7 +352,7 @@ bool Engine::kingCanCastleLong(const bool& isWhite, const Position& position, co
 }
 bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard) {
 	if (isWhite) {
-		if (!engineData.m_whiteCanCastleLong) {
+		if (!engineData.m_whiteCanCastleShort) {
 			return false;
 		}
 		uint64_t squaresTraversed = (0 | ((uint64_t)1) << 5) | ((uint64_t)1 << 6);
@@ -360,7 +362,7 @@ bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, c
 		}
 	}
 	else {
-		if (!engineData.m_blackCanCastleLong) {
+		if (!engineData.m_blackCanCastleShort) {
 			return false;
 		}
 		uint64_t squaresTraversed = (0 | ((uint64_t)1) << 61) | ((uint64_t)1 << 62);
@@ -407,13 +409,6 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 					}
 
 					Board::unmakeMove(move);
-
-					Position posAfterMove = Board::getCurrentPosition();
-
-					if (Board::findInconsistency(posBeforeMove, posAfterMove)) {
-						std::cout << "Problema causato dalla mossa: " << move << std::endl;
-						std::cin.get();
-					}
 				}
 				
 			}
@@ -422,14 +417,6 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 				move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
 				move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 				move |= none << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
-				
-				/*
-				if (move == 134) {
-					BoardHelper::printLegalMoves(moves);
-					Position pos = Board::getCurrentPosition();
-					BoardHelper::printLegalMoves(pos.bitboards[friendlyPieces]);
-					std::cout << "Piece type: " << pieceType << std::endl;
-				}*/
 				
 				Position posBeforeMove = Board::getCurrentPosition();
 				Board::makeMove(move); //faccio la mossa
@@ -444,13 +431,6 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(const uint64_t& moves, con
 				}
 
 				Board::unmakeMove(move);
-
-				Position posAfterMove = Board::getCurrentPosition();
-
-				if (Board::findInconsistency(posBeforeMove, posAfterMove)) {
-					std::cout << "Problema causato dalla mossa: " << move << std::endl;
-					std::cin.get();
-				}
 			}
 			
 			break;

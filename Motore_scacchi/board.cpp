@@ -92,12 +92,6 @@ void Board::makeMove(const uint16_t& move) {
 	}
 
 	m_bitBoards[pieceColorStart] = (m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //aggiornamento della bitboard relativa al colore del pezzo mosso
-	
-	/*
-	if (bitboardIndexStart == -895) {
-		BoardHelper::printBoard();
-		std::cin.get();
-	}*/
 
 	m_bitBoards[bitboardIndexStart] = (m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)); //tolgo il pezzo dalla sua casella precedente
 	
@@ -382,11 +376,21 @@ void Board::setPosition(std::string fenstring) {
 		//std::cout << "Casella bersaglio dell'en passant: " << Engine::getEnPassantSquare() << std::endl;
 	}
 
-	Engine::engineData.m_halfMoveClock = std::stoi(fenSplit[4]);
-	//std::cout << "Half move clock: " << Engine::getHalfMoveClock() << std::endl;
+	if (fenSplit.size() > 4) {
+		Engine::engineData.m_halfMoveClock = std::stoi(fenSplit[4]);
+		//std::cout << "Half move clock: " << Engine::getHalfMoveClock() << std::endl;
 
-	Engine::engineData.m_fullMoveClock = std::stoi(fenSplit[5]);
-	//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
+		Engine::engineData.m_fullMoveClock = std::stoi(fenSplit[5]);
+		//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
+	}
+	else {
+		Engine::engineData.m_halfMoveClock = 0;
+		//std::cout << "Half move clock: " << Engine::getHalfMoveClock() << std::endl;
+
+		Engine::engineData.m_fullMoveClock = 0;
+		//std::cout << "Full move clock: " << Engine::getFullMoveClock() << std::endl;
+	}
+	
 
 	m_previousPositionCharacteristics.push(previousPositionInfo);
 }
