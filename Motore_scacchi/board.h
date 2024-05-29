@@ -72,8 +72,12 @@ public:
 	
 	static bool findInconsistency(Position prevPos, Position newPos);
 
+	static void generaterookOccupancyBitmasks(); //funzione da usare una sola volta che consente di generare le bitmask necessarie per l'hashing relativo alle magic bitboard
+
+	static void generateRookMagicNumbers(); //funzione utilizzata per precalcolare i magic numbers da utilizzare per le torri
+
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 	static uint64_t allPiecesBitboard();
-	
+	static uint64_t m_rookOccupancyBitmask[]; //array utilizzato per memorizzare le bitmask per l'hashing relativo alla tecnica delle magic bitboard
 };

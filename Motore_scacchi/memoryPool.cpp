@@ -4,7 +4,7 @@ std::stack<vectorPointer> MemoryPool::freeVectors;
 std::unordered_set<vectorPointer> MemoryPool::vectorsInUse;
 
 void MemoryPool::initMemoryPool() {
-	for (int i = 0; i < 80; i++) { //inserisci nello stack dei vettori disponibili per l'uso 80 vettori
+	for (int i = 0; i < 5; i++) { //inserisci nello stack dei vettori disponibili per l'uso 5 vettori
 		vectorPointer vecPointer = new std::vector<uint16_t>;
 		vecPointer->reserve(256); //imposta la capacità iniziale di ciascun vettore a 256
 		freeVectors.push(vecPointer);

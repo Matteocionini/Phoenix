@@ -13,14 +13,14 @@
 std::mutex mtxReady;
 bool isReady = true;
 
-//TODO: finire di debuggare la generazione delle mosse
-
 int main(){
     std::ofstream log;
     std::string message = "";
     Engine::engineInit();
 
     std::ios_base::sync_with_stdio(false); //disabilita la sincronizzazione con le funzioni di I/O native di C per un considerevole miglioramento delle prestazioni
+
+    Board::generateRookMagicNumbers();
 
     while (message != "quit") {
         std::getline(std::cin, message);
