@@ -56,19 +56,19 @@ public:
 	static void unmakeMove(const uint16_t& move); //metodo che consente di annullare l'ultima mossa effettuata
 	static void unmakeMove(int startSquare, int endSquare, char promotionPiece, uint32_t previousPositionInfo); //overload della funzione unmakeMove, che consente di fornire le caratteristiche irreversibili della posizione precedente
 
-	static uint64_t rookMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per una data torre
-	static uint64_t bishopMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per un dato alfiere
+	static uint64_t generateRookMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per una data torre per l'inizializzazione delle magic bitboard
+	static uint64_t generateBishopMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per un dato alfiere per l'inizializzazione delle magic bitboard
 	static uint64_t queenMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per una data regina
 	static uint64_t kingMoves(const int& startSquare); //metodo che consente di generare le mosse pseudo-legali per il re
 	static uint64_t knightMoves(const int& startSquare); //metodo che consente di generare le mosse pseudo-legali per il cavallo
 	static uint64_t pawnMoves(const int& startSquare, const uint64_t& blockerBitboard, const bool& isWhite); //metodo per generare le mosse pseudo-legali per il pedone
+	static uint64_t bishopMoves(const int& startSquare, const uint64_t& blockerBitboard);
+	static uint64_t rookMoves(const int& startSquare, const uint64_t& blockerBitboard);
 
 	static uint64_t getBitboard(int bitboardIndex); //metodo che consente di ottenere una certa bitboard
 	static Position getCurrentPosition(); //metodo che consente di ottenere tutte le bitboard relative alla posizione attuale
 
 	static void resetPreviousPositionCharacteristics();
-
-	static std::stack<uint32_t> m_previousPositionCharacteristics; //stack contenente int da 32 bit contenente le caratteristiche irreversibili di una data posizione
 	
 	static bool findInconsistency(Position prevPos, Position newPos);
 
@@ -78,13 +78,25 @@ public:
 	static void generateRookMagicNumbers(); //funzione utilizzata per precalcolare i magic numbers da utilizzare per le torri
 	static void generateBishopMagicNumbers(); //funzione utilizzata per precalcolare i magic numbers da utilizzare per gli alfieri
 
+	static void initMagicBitboards(); //funzione, chiamata all'avvio del programma, che inizializza le magic bitboard
+
+public:
+	static std::stack<uint32_t> m_previousPositionCharacteristics; //stack contenente int da 32 bit contenente le caratteristiche irreversibili di una data posizione
+
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
-	static uint64_t allPiecesBitboard();
 	static uint64_t m_rookOccupancyBitmask[]; //array utilizzato per memorizzare le bitmask per l'hashing relativo alla tecnica delle magic bitboard
 	static uint64_t m_rookMagicNumbers[]; //array contenente i magic numbers relativi alle torri
-	static int m_rookShiftAmounts[]; //array contenente gli shift amount relativi alle torri
 	static uint64_t m_bishopOccupancyBitmask[]; //array contenente le bitmask per l'hashing relativo alla tecnica delle magic bitboard
 	static uint64_t m_bishopMagicNumbers[]; //array contenente i magic numbers relativi agli alfieri
 	static int m_bishopShiftAmounts[]; //array contenente gli shift amount relativi agli alfieri
+	static int m_rookShiftAmounts[]; //array contenente gli shift amount relativi alle torri
+
+	static uint64_t* m_buffer; //puntatore ad una zona di memoria sull'heap usata come buffer per le magic bitboard
+
+	static uint64_t* m_rookMagicBitboards[]; //vettore contenente le magic bitboard relative alle torri
+	static uint64_t* m_bishopMagicBitboards[]; //vettore contenente le magic bitboard relative agli alfieri
+	
+private:
+	static uint64_t allPiecesBitboard();
 };

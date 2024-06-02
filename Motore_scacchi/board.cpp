@@ -24,6 +24,10 @@ int Board::m_bishopShiftAmounts[64] = { 58, 60, 59, 59, 59, 59, 60, 58, 60, 60, 
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
 std::stack<uint32_t> Board::m_previousPositionCharacteristics;
 
+uint64_t* Board::m_buffer;
+uint64_t* Board::m_rookMagicBitboards[64];
+uint64_t* Board::m_bishopMagicBitboards[64];
+
 void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>[<promotion>]
 	int startSquare, endSquare, promotionPiece;
 	uint16_t moveOut = 0;
@@ -529,7 +533,7 @@ void Board::unmakeMove(const uint16_t& move) {
 	//BoardHelper::printBoard();
 }
 
-uint64_t Board::rookMoves(const int& startSquare, const uint64_t& blockerBitboard) {
+uint64_t Board::generateRookMoves(const int& startSquare, const uint64_t& blockerBitboard) {
 	uint64_t moves = 0;
 	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui la torre può muoversi
 
@@ -567,7 +571,7 @@ uint64_t Board::rookMoves(const int& startSquare, const uint64_t& blockerBitboar
 	return moves;
 }
 
-uint64_t Board::bishopMoves(const int& startSquare, const uint64_t& blockerBitboard) {
+uint64_t Board::generateBishopMoves(const int& startSquare, const uint64_t& blockerBitboard) {
 	uint64_t moves = 0;
 	int currSquare; //questa variabile viene utilizzata come indice per controllare le possibili caselle in cui l'alfiere può muoversi
 
@@ -977,7 +981,7 @@ void Board::generateRookMagicNumbers() {
 
 				//BoardHelper::printLegalMoves(blockerBitboard);
 				uint64_t index = (blockerBitboard * newMagic) >> shiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
-				uint64_t attackSet = rookMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+				uint64_t attackSet = generateRookMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
 				if (map[index] == UINT64_MAX || map[index] == attackSet) { //se la casella che dovrebbe corrispondere alla blocker bitboard generata è vuota o se l'attack set salvato in essa corrisponde con l'attack set appena generato, è tutto a posto
 					if (map[index] != UINT64_MAX) {
 						constructiveCollisions++;
@@ -1146,7 +1150,7 @@ void Board::generateBishopMagicNumbers() {
 
 				//BoardHelper::printLegalMoves(blockerBitboard);
 				uint64_t index = (blockerBitboard * newMagic) >> shiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
-				uint64_t attackSet = bishopMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+				uint64_t attackSet = generateBishopMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
 				if (map[index] == UINT64_MAX || map[index] == attackSet) { //se la casella che dovrebbe corrispondere alla blocker bitboard generata è vuota o se l'attack set salvato in essa corrisponde con l'attack set appena generato, è tutto a posto
 					if (map[index] != UINT64_MAX) {
 						constructiveCollisions++;
@@ -1184,4 +1188,149 @@ void Board::generateBishopMagicNumbers() {
 
 	std::cout << "\n\nRicerca terminata\n";
 	std::cin.get();
+}
+
+void Board::initMagicBitboards() {
+	uint64_t bufferSize = 0; //variabile utilizzata per memorizzare la dimensione del buffer che è necessario allocare in memoria per le magic bitboard
+	uint64_t offset = 0; //variabile utilizzata per assegnare ad ogni magic bitboard il suo indirizzo corretto
+	int numPatterns; //variabile utilizzata per determinare il numero di possibili pattern di blocker bitboard a partire da un dato quadrato
+	int cardinality;
+	uint64_t* prevBitboardPointer; //puntatore all'indirizzo di memoria della magic bitboard precedente
+
+	//conteggio del numero di caselle necessarie per le magic bitboard delle torri
+	for (int i = 0; i < 64; i++) {
+		bufferSize += exp2(64 - m_rookShiftAmounts[i]);
+	}
+
+	//conteggio del numero di caselle necessarie per le magic bitboard degli alfieri
+	for (int i = 0; i < 64; i++) {
+		bufferSize += exp2(64 - m_bishopShiftAmounts[i]);
+	}
+
+	m_buffer = new uint64_t[bufferSize]; //allocazione sull'heap del buffer di memoria
+
+	for (int i = 0; i < bufferSize; i++) {
+		m_buffer[i] = UINT64_MAX;
+	}
+
+	prevBitboardPointer = m_buffer;
+
+	//inizializzazione delle magic bitboard delle torri. Si tenga presente che ogni quadrato ha il suo array dedicato
+	for (int i = 0; i < 64; i++) {
+		m_rookMagicBitboards[i] = prevBitboardPointer + offset;
+
+		//conteggio del numero di possibili pattern per il quadrato corrente
+		cardinality = 0;
+		
+		for (int j = 0; j < 64; j++) {
+			if ((m_rookOccupancyBitmask[i] >> j) & 1) {
+				cardinality++;
+			}
+		}
+
+		numPatterns = exp2(cardinality);
+
+		for (int j = 0; j < numPatterns; j++) {
+			uint64_t blockerBitboard = 0; //blocker bitboard da popolare
+			int num = j;
+			int bitValue = cardinality - 1;
+
+			//popolo la blocker bitboard esattamente come se stessi convertendo manualmente il numero j da decimale a binario, considerando come unici bit validi quelli relativi ai quadrati rilevanti della bitboardMask
+
+			for (int k = 63; k >= 0 && num > 0; k--) { //itero sull'intero numero
+				if ((m_rookOccupancyBitmask[i] >> k) & 1) { //quando incontro un bit rilevante
+					if (exp2(bitValue) <= num) { //se il valore corrispondente al bit trovato sta all'interno del numero del pattern che sto considerando
+						blockerBitboard = blockerBitboard | ((uint64_t)1 << k); //accendo questo bit nella blockerBitboard
+						num -= exp2(bitValue); //decremento il numero da convertire in binario di una quantità pari al valore del bit appena acceso
+					}
+					bitValue--; //il valore del bit rilevante successivo sarà inferiore di un fattore 2 rispetto a quello corrente
+				}
+			}
+
+			uint64_t index = (blockerBitboard * m_rookMagicNumbers[i]) >> m_rookShiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
+			uint64_t attackSet = generateRookMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+
+			if (m_rookMagicBitboards[i][index] != UINT64_MAX && m_rookMagicBitboards[i][index] != attackSet) {
+				std::cout << "Errore" << std::endl;
+				std::cin.get();
+			}
+
+			m_rookMagicBitboards[i][index] = attackSet; //inserisci nella casella corretta della magic bitboard l'attack set calcolato
+		}
+
+		offset = exp2(64 - m_rookShiftAmounts[i]); //imposto l'offest di cui spostarmi per assegnare il puntatore alla bitboard successiva
+		prevBitboardPointer = m_rookMagicBitboards[i]; //imposto il puntatore alla bitboard appena inizializzata
+	}
+
+	offset = exp2(64 - m_rookShiftAmounts[63]);
+	prevBitboardPointer = m_rookMagicBitboards[63] + offset;
+
+	offset = 0;
+
+	//inizializzazione delle magic bitboard degli alfieri
+	for (int i = 0; i < 64; i++) {
+		m_bishopMagicBitboards[i] = prevBitboardPointer + offset;
+
+		//conteggio del numero di possibili pattern per il quadrato corrente
+		cardinality = 0;
+
+		for (int j = 0; j < 64; j++) {
+			if ((m_bishopOccupancyBitmask[i] >> j) & 1) {
+				cardinality++;
+			}
+		}
+
+		numPatterns = exp2(cardinality);
+
+		for (int j = 0; j < numPatterns; j++) {
+			uint64_t blockerBitboard = 0; //blocker bitboard da popolare
+			int num = j;
+			int bitValue = cardinality - 1;
+
+			//popolo la blocker bitboard esattamente come se stessi convertendo manualmente il numero j da decimale a binario, considerando come unici bit validi quelli relativi ai quadrati rilevanti della bitboardMask
+
+			for (int k = 63; k >= 0 && num > 0; k--) { //itero sull'intero numero
+				if ((m_bishopOccupancyBitmask[i] >> k) & 1) { //quando incontro un bit rilevante
+					if (exp2(bitValue) <= num) { //se il valore corrispondente al bit trovato sta all'interno del numero del pattern che sto considerando
+						blockerBitboard = blockerBitboard | ((uint64_t)1 << k); //accendo questo bit nella blockerBitboard
+						num -= exp2(bitValue); //decremento il numero da convertire in binario di una quantità pari al valore del bit appena acceso
+					}
+					bitValue--; //il valore del bit rilevante successivo sarà inferiore di un fattore 2 rispetto a quello corrente
+				}
+			}
+
+			uint64_t index = (blockerBitboard * m_bishopMagicNumbers[i]) >> m_bishopShiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
+			uint64_t attackSet = generateBishopMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+
+			if (m_bishopMagicBitboards[i][index] != UINT64_MAX && m_bishopMagicBitboards[i][index] != attackSet) {
+				std::cout << "Errore" << std::endl;
+				std::cin.get();
+			}
+
+			m_bishopMagicBitboards[i][index] = attackSet; //inserisci nella casella corretta della magic bitboard l'attack set calcolato
+		}
+
+		offset = exp2(64 - m_bishopShiftAmounts[i]); //imposto l'offest di cui spostarmi per assegnare il puntatore alla bitboard successiva
+		prevBitboardPointer = m_bishopMagicBitboards[i]; //imposto il puntatore alla bitboard appena inizializzata
+	}
+}
+
+uint64_t Board::bishopMoves(const int& startSquare, const uint64_t& blockerBitboard) {
+	uint64_t relevantBlockerBitboard = blockerBitboard & m_bishopOccupancyBitmask[startSquare];
+
+	uint64_t index = (relevantBlockerBitboard * m_bishopMagicNumbers[startSquare]) >> m_bishopShiftAmounts[startSquare];
+
+	//BoardHelper::printLegalMoves(m_bishopMagicBitboards[startSquare][index]);
+
+	return m_bishopMagicBitboards[startSquare][index];
+}
+
+uint64_t Board::rookMoves(const int& startSquare, const uint64_t& blockerBitboard) {
+	uint64_t relevantBlockerBitboard = blockerBitboard & m_rookOccupancyBitmask[startSquare];
+
+	uint64_t index = (relevantBlockerBitboard * m_rookMagicNumbers[startSquare]) >> m_rookShiftAmounts[startSquare];
+
+	//BoardHelper::printLegalMoves(m_rookMagicBitboards[startSquare][index]);
+
+	return m_rookMagicBitboards[startSquare][index];
 }

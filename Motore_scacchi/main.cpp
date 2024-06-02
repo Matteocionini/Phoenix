@@ -20,9 +20,7 @@ int main(){
 
     std::ios_base::sync_with_stdio(false); //disabilita la sincronizzazione con le funzioni di I/O native di C per un considerevole miglioramento delle prestazioni
 
-    Board::generateBishopMagicNumbers();
-
-    std::cin.get();
+    Board::initMagicBitboards(); //inizializzazione delle magic bitboard
 
     while (message != "quit") {
         std::getline(std::cin, message);

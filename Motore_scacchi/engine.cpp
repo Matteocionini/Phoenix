@@ -1,5 +1,6 @@
 #include <iostream>
 #include <memory>
+#include <bit>
 
 #include "engine.h"
 #include "boardHelper.h"
@@ -68,22 +69,21 @@ void Engine::startSearchAndEval() {
 	Board::resetPreviousPositionCharacteristics();
 }
 
-moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
+moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 	uint64_t blockerBitboard = 0; //bitboard contenente tutti i pezzi sulla scacchiera, da passare alle varie funzioni di generazione mosse per generare le mosse pseudolegali
 	int friendlyPieces = isWhite ? nWhite : nBlack; //variabile utilizzata per sapere quale tra la bitboard dei pezzi neri e quella dei pezzi bianchi è da considerare come bitboard dei pezzi alleati
 	moveArray moveList; //lista delle mosse legali generate
-	uint64_t currentBitboard; //bitboard corrente che si sta considerando per generare le mosse
 	uint64_t moves; //bitboard utilizzata per memorizzare temporaneamente le mosse generate da una specifica funzione di generazione mosse pseudo-legali
 	int kingSquare; //bitboard utilizzata per memorizzare la casella in cui si trova il re
 	uint16_t move = 0; //bitboard contenente temporaneamente una mossa
 	int pieceType;
 	moveArray legalMoves; //vettore usato per memorizzare temporaneamente delle mosse
+	uint64_t bitboardToWorkOn = position.bitboards[friendlyPieces]; //bitboard usata per iterare sulla scacchiera
+	int totalShiftAmount = 0; //numero di posizioni di cui ho shiftato la bitboard su cui sto lavorando
+	int i;
+	int currSquare; //quadrato che sto considerando per le mosse
 
-	for (kingSquare = 0; kingSquare < 64; kingSquare++) { //ciclo che va alla ricerca della casella contenente il re
-		if (((position.bitboards[nKings] & position.bitboards[friendlyPieces]) >> kingSquare) & 1) {
-			break;
-		}
-	}
+	kingSquare = std::countr_zero(position.bitboards[nKings] & position.bitboards[friendlyPieces]);
 
 	blockerBitboard = position.bitboards[nWhite] | position.bitboards[nBlack];
 
@@ -94,61 +94,62 @@ moveArray Engine::generateLegalMoves(const Position& position, bool isWhite) {
 	//std::cout << "La posizione corrente e' scacco: " << isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard) << std::endl;
 
 	//inizio generazione mosse legali
-	for (int i = 0; i < 64 && (position.bitboards[friendlyPieces] >> i) != 0; i++) { //la seconda condizione permette un'uscita anticipata dal ciclo nel caso in cui tutti i pezzi alleati siano già stati processati
-		switch ((position.bitboards[friendlyPieces] >> i) & 1) {
-		case 0: {
+	while(bitboardToWorkOn) { //la seconda condizione permette un'uscita anticipata dal ciclo nel caso in cui tutti i pezzi alleati siano già stati processati
+		i = std::countr_zero(bitboardToWorkOn);
+
+		currSquare = totalShiftAmount + i;
+		
+		for (pieceType = 2; pieceType < nBitboards; pieceType++) { //identifico il tipo di pezzo che si sta muovendo
+			if ((position.bitboards[pieceType] >> (currSquare)) & 1) {
+				break;
+			}
+		}
+
+		switch (pieceType) { //genero le mosse per il pezzo che si deve muovere
+		case nPawns: {
+			moves = Board::pawnMoves(currSquare, blockerBitboard, isWhite);
 			break;
 		}
-		case 1: {
-			for (pieceType = 2; pieceType < nBitboards; pieceType++) { //identifico il tipo di pezzo che si sta muovendo
-				if ((position.bitboards[pieceType] >> i) & 1) {
-					break;
-				}
-			}
-
-			switch (pieceType) { //genero le mosse per il pezzo che si deve muovere
-			case nPawns: {
-				moves = Board::pawnMoves(i, blockerBitboard, isWhite);
-				break;
-			}
-			case nBishops: {
-				moves = Board::bishopMoves(i, blockerBitboard);
-				break;
-			}
-			case nQueens: {
-				moves = Board::queenMoves(i, blockerBitboard);
-				break;
-			}
-			case nKings: {
-				moves = Board::kingMoves(i);
-				break;
-			}
-			case nKnights: {
-				moves = Board::knightMoves(i);
-				break;
-			}
-			case nRooks: {
-				moves = Board::rookMoves(i, blockerBitboard);
-				break;
-			}
-			default: { //se arrivo qui c'è decisamente un problema
-				std::cout << "Siamo alla casella: " << i << std::endl;
-				//BoardHelper::printLegalMoves(position.bitboards[friendlyPieces]);
-				moves = position.bitboards[friendlyPieces];
-			}
-			}
-
-			moves = moves & (~position.bitboards[friendlyPieces]); //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili
-
-			legalMoves.Reset();
-
-			getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, i, isWhite, kingSquare, legalMoves); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
-
-			moveList.Append(legalMoves.Begin(), legalMoves.End()); //aggiungo le mosse appena generate alla lista totale di mosse legali
-
-			legalMoves.Reset();
+		case nBishops: {
+			moves = Board::bishopMoves(currSquare, blockerBitboard);
+			break;
+		}
+		case nQueens: {
+			moves = Board::queenMoves(currSquare, blockerBitboard);
+			break;
+		}
+		case nKings: {
+			moves = Board::kingMoves(currSquare);
+			break;
+		}
+		case nKnights: {
+			moves = Board::knightMoves(currSquare);
+			break;
+		}
+		case nRooks: {
+			moves = Board::rookMoves(currSquare, blockerBitboard);
+			break;
+		}
+		default: { //se arrivo qui c'è decisamente un problema
+			std::cout << "Siamo alla casella: " << i << std::endl;
+			//BoardHelper::printLegalMoves(position.bitboards[friendlyPieces]);
+			moves = position.bitboards[friendlyPieces];
 		}
 		}
+
+		moves = moves & (~position.bitboards[friendlyPieces]); //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili
+
+		legalMoves.Reset();
+
+		getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, currSquare, isWhite, kingSquare, legalMoves); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
+
+		moveList.Append(legalMoves.Begin(), legalMoves.End()); //aggiungo le mosse appena generate alla lista totale di mosse legali
+
+		legalMoves.Reset();
+		
+		bitboardToWorkOn = bitboardToWorkOn >> (i + 1);
+
+		totalShiftAmount += i + 1;
 	}
 
 	//std::cout << "Si puo' arroccare lungo: " << kingCanCastleLong(isWhite, position, friendlyPieces, blockerBitboard) << std::endl;
