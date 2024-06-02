@@ -73,11 +73,18 @@ public:
 	static bool findInconsistency(Position prevPos, Position newPos);
 
 	static void generaterookOccupancyBitmasks(); //funzione da usare una sola volta che consente di generare le bitmask necessarie per l'hashing relativo alle magic bitboard
+	static void generateBishopOccupancyBitmasks(); //funzione che consente di generare le bitmask necessarie per l'hashing relativo alle magic bitboard
 
 	static void generateRookMagicNumbers(); //funzione utilizzata per precalcolare i magic numbers da utilizzare per le torri
+	static void generateBishopMagicNumbers(); //funzione utilizzata per precalcolare i magic numbers da utilizzare per gli alfieri
 
 private:
 	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 	static uint64_t allPiecesBitboard();
 	static uint64_t m_rookOccupancyBitmask[]; //array utilizzato per memorizzare le bitmask per l'hashing relativo alla tecnica delle magic bitboard
+	static uint64_t m_rookMagicNumbers[]; //array contenente i magic numbers relativi alle torri
+	static int m_rookShiftAmounts[]; //array contenente gli shift amount relativi alle torri
+	static uint64_t m_bishopOccupancyBitmask[]; //array contenente le bitmask per l'hashing relativo alla tecnica delle magic bitboard
+	static uint64_t m_bishopMagicNumbers[]; //array contenente i magic numbers relativi agli alfieri
+	static int m_bishopShiftAmounts[]; //array contenente gli shift amount relativi agli alfieri
 };

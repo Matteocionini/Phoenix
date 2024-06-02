@@ -1,5 +1,6 @@
 #include <iostream>
 #include <random>
+#include <chrono>
 
 #include "board.h"
 #include "boardHelper.h"
@@ -8,6 +9,17 @@
 #include "engine.h"
 
 uint64_t Board::m_rookOccupancyBitmask[64] = { 282578800148862, 565157600297596, 1130315200595066, 2260630401190006, 4521260802379886, 9042521604759646, 18085043209519166, 36170086419038334, 282578800180736, 565157600328704, 1130315200625152, 2260630401218048, 4521260802403840, 9042521604775424, 18085043209518592, 36170086419037696, 282578808340736, 565157608292864, 1130315208328192, 2260630408398848, 4521260808540160, 9042521608822784, 18085043209388032, 36170086418907136, 282580897300736, 565159647117824, 1130317180306432, 2260632246683648, 4521262379438080, 9042522644946944, 18085043175964672, 36170086385483776, 283115671060736, 565681586307584, 1130822006735872, 2261102847592448, 4521664529305600, 9042787892731904, 18085034619584512, 36170077829103616, 420017753620736, 699298018886144, 1260057572672512, 2381576680245248, 4624614895390720, 9110691325681664, 18082844186263552, 36167887395782656, 35466950888980736, 34905104758997504, 34344362452452352, 33222877839362048, 30979908613181440, 26493970160820224, 17522093256097792, 35607136465616896, 9079539427579068672, 8935706818303361536, 8792156787827803136, 8505056726876686336, 7930856604974452736, 6782456361169985536, 4485655873561051136, 9115426935197958144 }; //inizializzazione del vettore contenente le bitmask da usare nell'hashing per le magic bitboard relativo alle torri grazie ai valori precalcolati
+
+//per la generazione di questi due vettori vedere la funzione generateRookMagicNumbers()
+uint64_t Board::m_rookMagicNumbers[64] = { 12765338825791934653, 6003356142975670690, 12283358860737182866, 16780013626657448365, 6644383126179250247, 5388561657473499803, 7764550289560872950, 11182115657921111062, 7108287624222568984, 18149769911441700558, 2798070921934123540, 3196394180987118241, 7311249612629803773, 5463974744156384240, 8002156486500580371, 12783015346033590083, 1635254482294719967, 7729233032761743208, 14188794456437276548, 14607725556038480988, 13836227985847663852, 7555441162267721618, 7110907200316343014, 16618236445402391508, 7840045788121688066, 13215341325413387417, 7921009695388696789, 14024389061710998325, 7880677760711774364, 5341740142537501406, 10867118566742130547, 8595853550777471110, 43611992863275751, 10540578615202296880, 4752687527127652046, 8716546488374091641, 5053438310797449946, 17822603509532441848, 16683708196044859765, 9158910590718398507, 7050197630344975693, 6660075362541060509, 11622492273542556126, 11773804660200139974, 18316473365498753087, 11425703203271360522, 1494260979827426979, 7257951427207711403, 11988969984388537235, 1636927417397113444, 13039696375362582352, 2004841306521734954, 16119623313637209976, 12133913441870415030, 695565190972308480, 16019422294774868240, 322843803334106926, 12282542977649702398, 745910359379479754, 2599049938205435586, 17590132843619942386, 5672846611701838594, 6236104566056751756, 15571820733531445022 }; 
+
+int Board::m_rookShiftAmounts[64] = { 50, 51, 51, 51, 51, 51, 51, 50, 51, 53, 53, 53, 53, 53, 53, 52, 51, 53, 52, 52, 52, 52, 53, 52, 52, 53, 53, 52, 53, 52, 53, 52, 52, 53, 53, 53, 52, 52, 53, 52, 52, 53, 53, 52, 53, 53, 53, 52, 52, 53, 53, 53, 52, 53, 53, 52, 51, 52, 52, 52, 52, 52, 53, 51 };
+
+uint64_t Board::m_bishopOccupancyBitmask[64] = { 18049651735527936, 70506452091904, 275415828992, 1075975168, 38021120, 8657588224, 2216338399232, 567382630219776, 9024825867763712, 18049651735527424, 70506452221952, 275449643008, 9733406720, 2216342585344, 567382630203392, 1134765260406784, 4512412933816832, 9024825867633664, 18049651768822272, 70515108615168, 2491752130560, 567383701868544, 1134765256220672, 2269530512441344, 2256206450263040, 4512412900526080, 9024834391117824, 18051867805491712, 637888545440768, 1135039602493440, 2269529440784384, 4539058881568768, 1128098963916800, 2256197927833600, 4514594912477184, 9592139778506752, 19184279556981248, 2339762086609920, 4538784537380864, 9077569074761728, 562958610993152, 1125917221986304, 2814792987328512, 5629586008178688, 11259172008099840, 22518341868716544, 9007336962655232, 18014673925310464, 2216338399232, 4432676798464, 11064376819712, 22137335185408, 44272556441600, 87995357200384, 35253226045952, 70506452091904, 567382630219776, 1134765260406784, 2832480465846272, 5667157807464448, 11333774449049600, 22526811443298304, 9024825867763712, 18049651735527936 }; //inizializzazione del vettore contenente le bitmask da usare nell'hashing per le magic bitboard relativo agli alfieri grazie ai valori precalcolati
+
+uint64_t Board::m_bishopMagicNumbers[64] = { 1301458728482289659, 2480576671576751018, 10019474676587191777, 9968733218880549441, 10282291966949593424, 715088683708452943, 14590761865148562107, 11806229677758250851, 3625132614012968955, 16739331944649876474, 13392430790299613355, 5543623407150568148, 15163967460908598087, 8905791196360128586, 12531068692356923340, 14465687413383905156, 5120690120951539751, 4123175048549992398, 10191648675827122946, 2767230745509046865, 8736368379906216727, 10029236261004377954, 1005856890454163391, 8474861321512938386, 3983755699822008377, 9158074287147473603, 1415695568661738992, 7686206180567024438, 9947707072633712870, 15966256843794238982, 17470628480567804200, 2131544887437690907, 137395318718495892, 3541808489995232264, 17107402915822738976, 5689197996005913552, 3627739763300835353, 16429749946017513800, 11591235241407422405, 6126025282371325009, 1450091784425716907, 11592245020760917118, 8060315484380033032, 1126404720404547594, 4650367110558558720, 8917883794935786321, 13258493906644644162, 4226665651118442608, 6897257424288016484, 12961358619673518520, 12203791251348261336, 15431973664925455085, 16779642216255193537, 9104697014123889034, 15708331797815387792, 1711346512376401904, 11663196338124369846, 3663154921498436278, 10516323236185786404, 9345964734109555274, 8271288898437382665, 12182124706027931783, 11659397071542021733, 15425109614664615351 };
+
+int Board::m_bishopShiftAmounts[64] = { 58, 60, 59, 59, 59, 59, 60, 58, 60, 60, 59, 59, 59, 59, 60, 60, 59, 59, 57, 56, 56, 57, 59, 59, 59, 59, 56, 53, 53, 57, 59, 59, 59, 59, 56, 53, 53, 57, 59, 59, 59, 59, 57, 57, 57, 56, 59, 59, 60, 60, 59, 59, 59, 59, 60, 60, 58, 60, 59, 59, 59, 59, 60, 58 };
 
 uint64_t Board::m_bitBoards[nBitboards] = { 0 };
 std::stack<uint32_t> Board::m_previousPositionCharacteristics;
@@ -894,71 +906,282 @@ void Board::generateRookMagicNumbers() {
 	map.reserve(exp2(64 - 49)); //prealloco il vettore
 	bool isOk;
 	uint64_t newMagic;
+	int constructiveCollisions; //contatore del numero di collisioni costruttive
+	std::chrono::steady_clock clock; //timer
+	auto startTime = clock.now();
+	auto currTime = clock.now();
+	std::chrono::milliseconds timeElapsed;
 
-	std::fill(std::begin(shiftAmounts), std::end(shiftAmounts), 49); //inizializza tutti gli elementi del vettore shiftAmounts a 49
+	std::fill(std::begin(shiftAmounts), std::end(shiftAmounts), 48); //inizializza tutti gli elementi del vettore shiftAmounts a 48, che alla prima iterazione saranno incrementati a 49
 
 	std::random_device rd;
 	std::mt19937_64 e2(rd());
 	std::uniform_int_distribution<unsigned long long int> dist(0, UINT64_MAX); //roba per generazione di numeri casuali
 
-	for (int i = 0; i < 64; i++) { //per ogni singolo quadrato della scacchiera
-	start:
-		map.clear(); //svuota il vettore
-		isOk = true;
 
-		for (int j = 0; j < exp2(64 - shiftAmounts[i]); j++) { //riempio ogni cella del vettore con un valore inutile
-			map.push_back(UINT64_MAX);
-		}
+	do {
+		for (int i = 0; i < 64; i++) { //per ogni singolo quadrato della scacchiera
+			shiftAmounts[i]++; //incremento di uno la quanità di bit di cui shifto il mio indice
+			auto partialTime = clock.now(); //
 
-		newMagic = dist(e2); //prendo un magic number a caso
+		start:
+			currTime = clock.now();
+			timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds> (currTime - partialTime); //tempo passato dall'inizio della ricerca di un magic number per il quadrato corrente
 
-		int numPatterns = 0; //numero di possibili pattern di blocker rilevanti per il quadrato attuale
-		int cardinality = 0; //variabile usata per il conteggio dei possibili pattern
-
-		//il conteggio viene fatto come se si stesse contando in binario: ogni quadrato della bitboardMask corrispondente al quadrato preso in considerazione è visto come un "bit", che può essere "acceso" (contiene un pezzo) o "spento". Ecco che, dati n quadrati rilevanti, il numero di patter di blocker da considerare sarà pari a 2^n
-		for (int j = 0; j < 64; j++) {
-			if ((m_rookOccupancyBitmask[i] >> j) & 1) {
-				cardinality++;
+			if (timeElapsed.count() >= 3000) { //se dopo 5 secondi non ho ancora trovato un magic number che vada bene con il numero di bit per cui shiftare corrente
+				shiftAmounts[i]--; //ridiminuisco lo shift amount di 1
+				continue; //passo al prossimo quadrato
 			}
-		}
 
-		numPatterns = exp2(cardinality);
 
-		//ora, dopo aver trovato il numero di possibili pattern, è necessario generare la blockerBitboard relativa a ogni singolo pattern
-		for (int j = 0; j < numPatterns; j++) {
-			uint64_t blockerBitboard = 0; //blocker bitboard da popolare
-			bool finished = false;
-			int num = j;
-			int bitValue = cardinality - 1;
+			constructiveCollisions = 0;
+			map.clear(); //svuota il vettore
+			isOk = true;
 
-			//popolo la blocker bitboard esattamente come se stessi convertendo manualmente il numero j da decimale a binario, considerando come unici bit validi quelli relativi ai quadrati rilevanti della bitboardMask
+			for (int j = 0; j < exp2(64 - shiftAmounts[i]); j++) { //riempio ogni cella del vettore con un valore inutile
+				map.push_back(UINT64_MAX);
+			}
 
-			for (int k = 63; k >= 0 && num > 0; k--) { //itero sull'intero numero
-				if ((m_rookOccupancyBitmask[i] >> k) & 1){ //quando incontro un bit rilevante
-					if (exp2(bitValue) <= num) { //se il valore corrispondente al bit trovato sta all'interno del numero del pattern che sto considerando
-						blockerBitboard = blockerBitboard | ((uint64_t)1 << k); //accendo questo bit nella blockerBitboard
-						num -= exp2(bitValue); //decremento il numero da convertire in binario di una quantità pari al valore del bit appena acceso
-					}
-					bitValue--; //il valore del bit rilevante successivo sarà inferiore di un fattore 2 rispetto a quello corrente
+			newMagic = dist(e2); //prendo un magic number a caso
+
+			int numPatterns = 0; //numero di possibili pattern di blocker rilevanti per il quadrato attuale
+			int cardinality = 0; //variabile usata per il conteggio dei possibili pattern
+
+			//il conteggio viene fatto come se si stesse contando in binario: ogni quadrato della bitboardMask corrispondente al quadrato preso in considerazione è visto come un "bit", che può essere "acceso" (contiene un pezzo) o "spento". Ecco che, dati n quadrati rilevanti, il numero di patter di blocker da considerare sarà pari a 2^n
+			for (int j = 0; j < 64; j++) {
+				if ((m_rookOccupancyBitmask[i] >> j) & 1) {
+					cardinality++;
 				}
 			}
 
-			//BoardHelper::printLegalMoves(blockerBitboard);
-			int index = (blockerBitboard * newMagic) >> shiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
-			uint64_t attackSet = rookMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
-			if (map[index] == UINT64_MAX || map[index] == attackSet) { //se la casella che dovrebbe corrispondere alla blocker bitboard generata è vuota o se l'attack set salvato in essa corrisponde con l'attack set appena generato, è tutto a posto
-				map[index] = attackSet;
-				//BoardHelper::printLegalMoves(map[index]);
+			numPatterns = exp2(cardinality);
+
+			//ora, dopo aver trovato il numero di possibili pattern, è necessario generare la blockerBitboard relativa a ogni singolo pattern
+			for (int j = 0; j < numPatterns; j++) {
+				uint64_t blockerBitboard = 0; //blocker bitboard da popolare
+				bool finished = false;
+				int num = j;
+				int bitValue = cardinality - 1;
+
+				//popolo la blocker bitboard esattamente come se stessi convertendo manualmente il numero j da decimale a binario, considerando come unici bit validi quelli relativi ai quadrati rilevanti della bitboardMask
+
+				for (int k = 63; k >= 0 && num > 0; k--) { //itero sull'intero numero
+					if ((m_rookOccupancyBitmask[i] >> k) & 1) { //quando incontro un bit rilevante
+						if (exp2(bitValue) <= num) { //se il valore corrispondente al bit trovato sta all'interno del numero del pattern che sto considerando
+							blockerBitboard = blockerBitboard | ((uint64_t)1 << k); //accendo questo bit nella blockerBitboard
+							num -= exp2(bitValue); //decremento il numero da convertire in binario di una quantità pari al valore del bit appena acceso
+						}
+						bitValue--; //il valore del bit rilevante successivo sarà inferiore di un fattore 2 rispetto a quello corrente
+					}
+				}
+
+				//BoardHelper::printLegalMoves(blockerBitboard);
+				uint64_t index = (blockerBitboard * newMagic) >> shiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
+				uint64_t attackSet = rookMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+				if (map[index] == UINT64_MAX || map[index] == attackSet) { //se la casella che dovrebbe corrispondere alla blocker bitboard generata è vuota o se l'attack set salvato in essa corrisponde con l'attack set appena generato, è tutto a posto
+					if (map[index] != UINT64_MAX) {
+						constructiveCollisions++;
+					}
+					else {
+						map[index] = attackSet;
+					}
+					//BoardHelper::printLegalMoves(map[index]);
+				}
+				else { //altrimenti, vuol dire che il magic number non ha le proprietà desiderate, quindi provo con un altro magic number
+					goto start;
+				}
 			}
-			else { //altrimenti, vuol dire che il magic number non ha le proprietà desiderate, quindi provo con un altro magic number
-				goto start;
-			}
+
+			//se arrivo qua, ho trovato un magic number che rispetti le proprietà desiderate
+			magicNumbers[i] = newMagic;
+			std::cout << "Magic number trovato per la casella numero " << i << ": " << newMagic << std::endl;
+			std::cout << "Numero di collisioni costruttive: " << constructiveCollisions << "\n\n";
 		}
 
-		//se arrivo qua, ho trovato un magic number che rispetti le proprietà desiderate
-		magicNumbers[i] = newMagic;
-		std::cout << "Magic number trovato: " << newMagic << std::endl;
 
-		//TODO: aggiungere un meccanismo per poter effettuare la ricerca più volte al fine di cercare magic number migliori
+		currTime = clock.now();
+		timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds> (currTime - startTime);
+	} while (timeElapsed.count() < 2400000);
+
+	std::cout << "Magic numbers: ";
+	for (int i = 0; i < 64; i++) {
+		std::cout << magicNumbers[i] << ", ";
 	}
+
+	std::cout << "\n\nShift amounts: ";
+	for (int i = 0; i < 64; i++) {
+		std::cout << shiftAmounts[i] << ", ";
+	}
+
+	std::cout << "\n\nRicerca terminata\n";
+	std::cin.get();
+}
+
+void Board::generateBishopOccupancyBitmasks() {
+	uint64_t bitmask;
+	uint64_t bitmasks[64];
+	for (int i = 0; i < 64; i++) {
+		bitmask = 0;
+
+		for (int j = i - 9; j > 7 && j % 8 != 0; j -= 9) { //spostamento diagonale verso il basso a sinistra
+			if ((j + 1) % 8 == 0) {
+				break;
+			}
+
+			bitmask = bitmask | ((uint64_t)1 << j);
+		}
+
+		for (int j = i + 9; j < 56 && (j + 1) % 8 != 0; j += 9) { //spostamento diagonale verso l'alto a destra
+			if (j % 8 == 0) {
+				break;
+			}
+
+			bitmask = bitmask | ((uint64_t)1 << j);
+		}
+
+		for (int j = i - 7; j > 7 && (j + 1) % 8 != 0; j -= 7) { //spostamento diagonale verso il basso a destra
+			if (j % 8 == 0) {
+				break;
+			}
+
+			bitmask = bitmask | ((uint64_t)1 << j);
+		}
+
+		for (int j = i + 7; j < 56 && j % 8 != 0; j += 7) { //spostamento diagonale verso l'alto a sinistra
+			if ((j + 1) % 8 == 0) {
+				break;
+			}
+
+			bitmask = bitmask | ((uint64_t)1 << j);
+		}
+
+		BoardHelper::printLegalMoves(bitmask);
+		bitmasks[i] = bitmask;
+	}
+
+	for (int i = 0; i < 64; i++) {
+		std::cout << bitmasks[i] << ", ";
+
+		if (i != 0 && i % 8 == 0) {
+			std::cout << std::endl;
+		}
+	}
+}
+
+void Board::generateBishopMagicNumbers() {
+	uint64_t magicNumbers[64] = { 0 }; //vettore in cui salvo i magic number
+	int shiftAmounts[64]; //non scendo sotto 49 come numero di cui effettuare uno shift, in quanto già così la hashtable richiederebbe 2 MB in memoria, che è enorme
+	std::vector<uint64_t> map;
+	map.reserve(exp2(64 - 49)); //prealloco il vettore
+	bool isOk;
+	uint64_t newMagic;
+	int constructiveCollisions; //contatore del numero di collisioni costruttive
+	std::chrono::steady_clock clock; //timer
+	auto startTime = clock.now();
+	auto currTime = clock.now();
+	std::chrono::milliseconds timeElapsed;
+
+	std::fill(std::begin(shiftAmounts), std::end(shiftAmounts), 48); //inizializza tutti gli elementi del vettore shiftAmounts a 48, che alla prima iterazione saranno incrementati a 49
+
+	std::random_device rd;
+	std::mt19937_64 e2(rd());
+	std::uniform_int_distribution<unsigned long long int> dist(0, UINT64_MAX); //roba per generazione di numeri casuali
+
+
+	do {
+		for (int i = 0; i < 64; i++) { //per ogni singolo quadrato della scacchiera
+			shiftAmounts[i]++; //incremento di uno la quanità di bit di cui shifto il mio indice
+			auto partialTime = clock.now(); //
+
+		start:
+			currTime = clock.now();
+			timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds> (currTime - partialTime); //tempo passato dall'inizio della ricerca di un magic number per il quadrato corrente
+
+			if (timeElapsed.count() >= 3000) { //se dopo 5 secondi non ho ancora trovato un magic number che vada bene con il numero di bit per cui shiftare corrente
+				shiftAmounts[i]--; //ridiminuisco lo shift amount di 1
+				continue; //passo al prossimo quadrato
+			}
+
+
+			constructiveCollisions = 0;
+			map.clear(); //svuota il vettore
+			isOk = true;
+
+			for (int j = 0; j < exp2(64 - shiftAmounts[i]); j++) { //riempio ogni cella del vettore con un valore inutile
+				map.push_back(UINT64_MAX);
+			}
+
+			newMagic = dist(e2); //prendo un magic number a caso
+
+			int numPatterns = 0; //numero di possibili pattern di blocker rilevanti per il quadrato attuale
+			int cardinality = 0; //variabile usata per il conteggio dei possibili pattern
+
+			//il conteggio viene fatto come se si stesse contando in binario: ogni quadrato della bitboardMask corrispondente al quadrato preso in considerazione è visto come un "bit", che può essere "acceso" (contiene un pezzo) o "spento". Ecco che, dati n quadrati rilevanti, il numero di patter di blocker da considerare sarà pari a 2^n
+			for (int j = 0; j < 64; j++) {
+				if ((m_bishopOccupancyBitmask[i] >> j) & 1) {
+					cardinality++;
+				}
+			}
+
+			numPatterns = exp2(cardinality);
+
+			//ora, dopo aver trovato il numero di possibili pattern, è necessario generare la blockerBitboard relativa a ogni singolo pattern
+			for (int j = 0; j < numPatterns; j++) {
+				uint64_t blockerBitboard = 0; //blocker bitboard da popolare
+				bool finished = false;
+				int num = j;
+				int bitValue = cardinality - 1;
+
+				//popolo la blocker bitboard esattamente come se stessi convertendo manualmente il numero j da decimale a binario, considerando come unici bit validi quelli relativi ai quadrati rilevanti della bitboardMask
+
+				for (int k = 63; k >= 0 && num > 0; k--) { //itero sull'intero numero
+					if ((m_bishopOccupancyBitmask[i] >> k) & 1) { //quando incontro un bit rilevante
+						if (exp2(bitValue) <= num) { //se il valore corrispondente al bit trovato sta all'interno del numero del pattern che sto considerando
+							blockerBitboard = blockerBitboard | ((uint64_t)1 << k); //accendo questo bit nella blockerBitboard
+							num -= exp2(bitValue); //decremento il numero da convertire in binario di una quantità pari al valore del bit appena acceso
+						}
+						bitValue--; //il valore del bit rilevante successivo sarà inferiore di un fattore 2 rispetto a quello corrente
+					}
+				}
+
+				//BoardHelper::printLegalMoves(blockerBitboard);
+				uint64_t index = (blockerBitboard * newMagic) >> shiftAmounts[i]; //indice a cui l'attack set corrispondente alla blocker bitboard generata viene mappato
+				uint64_t attackSet = bishopMoves(i, blockerBitboard); //mosse legali della torre associate con la blocker bitboard appena generata
+				if (map[index] == UINT64_MAX || map[index] == attackSet) { //se la casella che dovrebbe corrispondere alla blocker bitboard generata è vuota o se l'attack set salvato in essa corrisponde con l'attack set appena generato, è tutto a posto
+					if (map[index] != UINT64_MAX) {
+						constructiveCollisions++;
+					}
+					else {
+						map[index] = attackSet;
+					}
+					//BoardHelper::printLegalMoves(map[index]);
+				}
+				else { //altrimenti, vuol dire che il magic number non ha le proprietà desiderate, quindi provo con un altro magic number
+					goto start;
+				}
+			}
+
+			//se arrivo qua, ho trovato un magic number che rispetti le proprietà desiderate
+			magicNumbers[i] = newMagic;
+			std::cout << "Magic number trovato per la casella numero " << i << ": " << newMagic << std::endl;
+			std::cout << "Numero di collisioni costruttive: " << constructiveCollisions << "\n\n";
+		}
+
+
+		currTime = clock.now();
+		timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds> (currTime - startTime);
+	} while (timeElapsed.count() < 2400000);
+
+	std::cout << "Magic numbers: ";
+	for (int i = 0; i < 64; i++) {
+		std::cout << magicNumbers[i] << ", ";
+	}
+
+	std::cout << "\n\nShift amounts: ";
+	for (int i = 0; i < 64; i++) {
+		std::cout << shiftAmounts[i] << ", ";
+	}
+
+	std::cout << "\n\nRicerca terminata\n";
+	std::cin.get();
 }
