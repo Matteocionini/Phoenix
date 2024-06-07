@@ -93,8 +93,10 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
 				BoardHelper::printBoard();
 
-				Position pos = Board::getCurrentPosition();
-				Engine::generateLegalMoves(pos, Engine::engineData.m_isWhite);
+				//std::cout << "Is white: " << Engine::engineData.m_isWhite << std::endl;
+
+				//Position pos = Board::getCurrentPosition();
+				//Engine::generateLegalMoves(pos, Engine::engineData.m_isWhite);
 			}
 		}
 		else {
