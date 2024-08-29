@@ -633,7 +633,7 @@ uint64_t Board::kingMoves(const int& startSquare) {
 	if (startSquare < 56) {
 		moves = moves | ((uint64_t)1 << (startSquare + 8));
 	}
-	if ((startSquare + 1) % 8 != 0) {
+	if (!BoardHelper::isOnRightBorder(startSquare)) {
 		moves = moves | ((uint64_t)1 << (startSquare + 1));
 
 		if (startSquare > 7) {
@@ -643,7 +643,7 @@ uint64_t Board::kingMoves(const int& startSquare) {
 			moves = moves | ((uint64_t)1 << (startSquare + 9));
 		}
 	}
-	if (startSquare % 8 != 0) {
+	if (!BoardHelper::isOnLeftBorder(startSquare)) {
 		moves = moves | ((uint64_t)1 << (startSquare - 1));
 
 		if (startSquare > 7) {
@@ -710,7 +710,7 @@ uint64_t Board::knightMoves(const int& startSquare) {
 uint64_t Board::pawnMoves(const int& startSquare, const uint64_t& blockerBitboard, const bool& isWhite) {
 	uint64_t moves = 0;
 
-	if (startSquare % 8 != 0) {
+	if (!BoardHelper::isOnLeftBorder(startSquare)) {
 		if (isWhite) {
 			if ((blockerBitboard >> (startSquare + 7)) & 1 || startSquare + 7 == Engine::engineData.m_enPassantSquare) { //controllo se il pedone bianco può catturare andando verso sinistra
 				moves = moves | ((uint64_t)1 << (startSquare + 7));
@@ -723,7 +723,7 @@ uint64_t Board::pawnMoves(const int& startSquare, const uint64_t& blockerBitboar
 		}
 	}
 
-	if ((startSquare + 1) % 8 != 0) {
+	if (!BoardHelper::isOnRightBorder(startSquare)) {
 		if (isWhite) {
 			if (blockerBitboard >> (startSquare + 9) & 1 || startSquare + 9 == Engine::engineData.m_enPassantSquare) { //controllo se il pedone bianco può catturare verso destra
 				moves = moves | ((uint64_t)1 << (startSquare + 9));

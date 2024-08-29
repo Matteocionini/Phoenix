@@ -36,6 +36,8 @@ void Engine::engineInit() {
 	engineData.m_blackCanCastleShort = false;
 	engineData.m_enPassantSquare = -1;
 
+	BoardHelper::initBorderBitboards();
+
 
 	mtxReady.lock();
 	isReady = true;
@@ -231,6 +233,8 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 
 		legalMoves.Reset();
 
+		//BoardHelper::printLegalMoves(moves);
+
 		getLegalMovesFromPossibleSquaresBitboard(moves, friendlyPieces, blockerBitboard, pieceType, currSquare, isWhite, kingSquare, legalMoves); //genero le mosse legali a partire dalla bitboard delle mosse pseudolegali
 
 		moveList.Append(legalMoves.Begin(), legalMoves.End()); //aggiungo le mosse appena generate alla lista totale di mosse legali
@@ -276,8 +280,11 @@ uint64_t Engine::perft(int depth, bool first) {
 	//bulk-counting
 	generatedMoves = Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
 
-	if (depth == 1) {
+	if (depth == 1 && !first) {
 		return generatedMoves.getSize();
+	}
+	else if (depth == 0) {
+		return 1;
 	}
 
 	for (int i = 0; i < generatedMoves.getSize(); i++) {
@@ -352,12 +359,29 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 		return true;
 	}
 
+	bool kingOnLeftBorder = BoardHelper::isOnLeftBorder(kingBitboard);
+	bool kingOnRightBorder = BoardHelper::isOnRightBorder(kingBitboard);
+
 	//controllo ora le caselle da cui il pedone potrebbe essere messo sotto scacco da un re
 	if (friendlyPieces == nWhite && kingSquare < 48) { //se il re è bianco ed è sotto alla riga 7
-		dangerousSquares = 0 | (((uint64_t)1 << (kingSquare + 9)) | ((uint64_t)1 << (kingSquare + 7))); //le caselle pericolose sono quella in alto a sinistra e quella in alto a destra del re
+		dangerousSquares = 0;
+		//le caselle pericolose sono quella in alto a sinistra e quella in alto a destra del re
+		if (!kingOnLeftBorder) { //prima di controllare la casella in alto a sinistra verifico che il re non si trovi sul bordo sinistro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (kingSquare + 7));
+		}
+		if (!kingOnRightBorder) { //prima di controllare la casella in alto a destra verifico che il re non si trovi sul bordo destro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (kingSquare + 9));
+		}
 	}
 	else if (friendlyPieces == nBlack && kingSquare > 15) { //se il re è nero ed è sopra alla riga 2
-		dangerousSquares = 0 | (((uint64_t)1 << (kingSquare - 9)) | ((uint64_t)1 << (kingSquare - 7))); //le caselle pericolose sono quella in basso a sinistra e quella in basso a destra del re
+		dangerousSquares = 0;
+		//le caselle pericolose sono quella in basso a sinistra e quella in basso a destra del re
+		if (!kingOnLeftBorder) { //prima di controllare la casella in basso a sinistra verifico che il re non si trovi sul bordo sinistro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (kingSquare - 9));
+		}
+		if (!kingOnRightBorder) { //prima di controllare la casella in basso a destra verifico che il re non si trovi sul bordo destro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (kingSquare - 7));
+		}
 	}
 	else { //se si arriva qui, il re non può essere messo sotto scacco da un pedone
 		dangerousSquares = 0;

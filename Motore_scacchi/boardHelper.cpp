@@ -4,6 +4,9 @@
 #include "boardHelper.h"
 #include "engineUtils.h"
 
+uint64_t BoardHelper::m_rightBorderBitboard = 0;
+uint64_t BoardHelper::m_leftBorderBitboard = 0;
+
 void BoardHelper::printBoard() {
 	std::shared_ptr<uint64_t[]> bitboards = Board::getBitBoards();
 	bitBoardType pieceType, pieceColor;
@@ -246,4 +249,35 @@ void BoardHelper::printBoard(Position position) {
 		std::cout << std::endl;
 	}
 	std::cout << "---------------------------------" << std::endl;
+}
+
+void BoardHelper::initBorderBitboards() {
+	//inizializzazione della bitboard rappresentativa del bordo destro della scacchiera
+	for (int i = 7; i <= 63; i += 8) {
+		m_rightBorderBitboard |= (uint64_t)1 << i;
+	}
+
+	//inizializzazione della bitboard rappresentativa del bordo sinistro della scacchiera
+	for (int i = 0; i <= 63; i += 8) {
+		m_leftBorderBitboard |= (uint64_t)1 << i;
+	}
+
+	//BoardHelper::printLegalMoves(m_rightBorderBitboard);
+	//BoardHelper::printLegalMoves(m_leftBorderBitboard);
+}
+
+bool BoardHelper::isOnLeftBorder(const int& square) {
+	return m_leftBorderBitboard & ((uint64_t)1 << square);
+}
+
+bool BoardHelper::isOnRightBorder(const int& square) {
+	return m_rightBorderBitboard & ((uint64_t)1 << square);
+}
+
+bool BoardHelper::isOnLeftBorder(const uint64_t& square) {
+	return square & m_leftBorderBitboard;
+}
+
+bool BoardHelper::isOnRightBorder(const uint64_t& square) {
+	return square & m_rightBorderBitboard;
 }
