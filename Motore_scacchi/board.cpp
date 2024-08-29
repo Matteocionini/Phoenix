@@ -30,34 +30,36 @@ uint64_t* Board::m_bishopMagicBitboards[64];
 
 void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <col><rank><col><rank>[<promotion>]
 	int startSquare, endSquare, promotionPiece;
-	uint16_t moveOut = 0;
+	uint32_t moveOut = 0;
 
 	//estrazione di quadrato di partenza, quadrato di arrivo ed eventuale promozione dall'int che rappresenta la mossa
 	startSquare = move[0] - 'a' + (move[1] - '1') * 8;
 	endSquare = move[2] - 'a' + (move[3] - '1') * 8;
 	
 	if (move.length() == 5) {
+		moveOut = moveOut | (1 << moveIsPromotionBitMask);
+
 		switch (move[4]) {
 		case 'q': {
-			promotionPiece = queen;
+			promotionPiece = nQueens;
 			break;
 		}
 		case 'n': {
-			promotionPiece = knight;
+			promotionPiece = nKnights;
 			break;
 		}
 		case 'r': {
-			promotionPiece = rook;
+			promotionPiece = nRooks;
 			break;
 		}
 		case 'b': {
-			promotionPiece = queen;
+			promotionPiece = nBishops;
 			break;
 		}
 		}
 	}
 	else {
-		promotionPiece = none;
+		promotionPiece = 0;
 	}
 
 	moveOut = ((moveOut | startSquare) | (endSquare << moveEndSquareOffset)) | (promotionPiece << movePromotionPieceOffset);
@@ -65,7 +67,7 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 	makeMove(moveOut);
 }
 
-void Board::makeMove(const uint16_t& move) { 
+void Board::makeMove(const uint32_t& move) { 
 	int bitboardIndexStart = -895, bitboardIndexEnd = -1;
 	int pieceColorStart, pieceColorEnd;
 	uint32_t previousPositionCharacteristics = 0; //intero da 32 bit contenente le informazioni relative alla posizione precedente
@@ -115,28 +117,8 @@ void Board::makeMove(const uint16_t& move) {
 	
 
 
-	if (promotionPiece != none) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
-		switch (promotionPiece) { //controllo a che tipo di pezzo il pedone è stato promosso
-		case queen: {
-			bitboardIndexStart = nQueens;
-			break;
-		}
-
-		case rook: {
-			bitboardIndexStart = nRooks;
-			break;
-		}
-
-		case knight: {
-			bitboardIndexStart = nKnights;
-			break;
-		}
-
-		case bishop: {
-			bitboardIndexStart = nBishops;
-			break;
-		}
-		}
+	if (promotionPiece != 0) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
+		bitboardIndexStart = promotionPiece;
 
 		m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //metto nella casella di arrivo il pezzo a cui il pedone è stato promosso
 
@@ -446,7 +428,7 @@ uint64_t Board::allPiecesBitboard() {
 	return out;
 }
 
-void Board::unmakeMove(const uint16_t& move) {
+void Board::unmakeMove(const uint32_t& move) {
 	int pieceColor, pieceType;
 
 	int startSquare = move & moveStartSquareBitmask;
@@ -493,7 +475,7 @@ void Board::unmakeMove(const uint16_t& move) {
 		m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
 	}
 
-	if (promotionPiece != none) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
+	if (promotionPiece != 0) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
 		pieceType = nPawns;
 	}
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <memory>
 #include <bit>
+#include <time.h>
 
 #include "engine.h"
 #include "boardHelper.h"
@@ -45,14 +46,19 @@ void Engine::engineInit() {
 }
 
 void Engine::startSearchAndEval() {
-	int depth; //variabile in cui è salvata la profondità di ricerca massima consentita per la ricerca corrente
+	int depth = maxAllowedInitialDepth; //variabile in cui è salvata la profondità di ricerca massima consentita per la ricerca corrente
+	int time = engineData.m_isWhite ? engineData.m_wTime : engineData.m_bTime; //variabile in cui è memorizzato il tempo rimasto al motore
+	std::chrono::steady_clock timer; //timer utilizzato per tenere traccia del tempo trascorso dal
+	auto startTime = timer.now();
+	auto currTime = startTime;
+	int maxDepth = 15; //profondità massima di ricerca
 
+	//nel caso in cui vi sia una profondità di ricerca massima, la imposto
 	if (engineData.m_maxDepth != -1) {
-		depth = engineData.m_maxDepth;
+		maxDepth = engineData.m_maxDepth;
 	}
-	else {
-		depth = maxAllowedDepth;
-	}
+	
+
 
 	//reset di tutte le variabili search-specific
 	engineData.m_moveList.clear();
@@ -69,6 +75,24 @@ void Engine::startSearchAndEval() {
 	engineData.m_restrictSearch = false;
 
 	Board::resetPreviousPositionCharacteristics();
+}
+
+int Engine::miniMax(int depth, int alpha, int beta, bool isWhite) {
+	moveArray moves;
+
+	if (depth == 0) { //se il nodo corrente è un nodo foglia, ritorna la valutazione della posizione
+		//return Engine::evaluate(position);
+	}
+
+	moves = generateLegalMoves(Board::getCurrentPosition(), isWhite); //genera le mosse legali disponibili per il giocatore corrente
+
+	if (moves.getSize() == 0) { //se il numero di mosse legali disponibili è 0, il giocatore corrente è sotto scacco matto
+		return isWhite ? INT_MIN : INT_MAX;
+	}
+
+	if (isWhite) { //il bianco è il giocatore che deve massimizzare il punteggio
+
+	}
 }
 
 moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
@@ -90,6 +114,8 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 	bool bishop;
 	uint64_t temp2;
 	uint64_t pinRays[64]; //vettore in cui memorizzo i pinRay relativi ad ogni pezzo pinnato nella posizione corrente
+
+	moveList.Reset();
 
 	for (int i = 0; i < 64; i++) {
 		pinRays[i] = UINT64_MAX; //inizializzazione del vettore pinRays
@@ -254,7 +280,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		move = 0;
 		move |= (kingSquare - 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
-		move |= (none) << movePromotionPieceOffset;
+		move |= 0 << movePromotionPieceOffset;
 
 		moveList.pushBack(move);
 	}
@@ -263,7 +289,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		move = 0;
 		move |= (kingSquare + 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
-		move |= (none) << movePromotionPieceOffset;
+		move |= 0 << movePromotionPieceOffset;
 
 		moveList.pushBack(move);
 	}
@@ -275,7 +301,7 @@ uint64_t Engine::perft(int depth, bool first) {
 	uint64_t moveCount = 0; //contatore delle mosse generate fin'ora
 	moveArray generatedMoves; //vettore in cui memorizzo le ultime mosse generate
 	uint64_t count;
-	uint16_t move;
+	uint32_t move;
 
 	//bulk-counting
 	generatedMoves = Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
@@ -303,19 +329,19 @@ uint64_t Engine::perft(int depth, bool first) {
 			char promotionPiece = -1;
 
 			switch ((move >> movePromotionPieceOffset) & movePromotionPieceBitMask) {
-			case 1: {
+			case nQueens: {
 				promotionPiece = 'q';
 				break;
 			}
-			case 2: {
+			case nKnights: {
 				promotionPiece = 'n';
 				break;
 			}
-			case 3: {
+			case nBishops: {
 				promotionPiece = 'b';
 				break;
 			}
-			case 4: {
+			case nRooks: {
 				promotionPiece = 'r';
 				break;
 			}
@@ -478,7 +504,7 @@ bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, c
 }
 
 void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare, moveArray& moveList) {
-	uint16_t move = 0; //bitboard in cui costruisco e salvo temporaneamente le mosse legali
+	uint32_t move = 0; //bitboard in cui costruisco e salvo temporaneamente le mosse legali
 	int actualKingSquare = pieceType == nKings ? -1 : kingSquare;
 	uint64_t dangerousSquares = UINT64_MAX; //variabile in cui salvo le caselle pericolose, ovvero le caselle in cui lo spostamento di un pezzo potrebbe lasciare il re soggetto a scacco
 	Position startPos = Board::getCurrentPosition();
@@ -489,11 +515,12 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 		moves = moves ^ ((uint64_t)1 << i);
 
 		if (pieceType == nPawns && ((isWhite && i >= 56) || (!isWhite && i <= 7))) { //se il pezzo che si muove è un pedone che deve essere promosso, genero tutte le promozioni
-			for (int j = 1; j < 5; j++) {
+			for (int j = 4; j < 8; j++) {
 				move = 0;
 				move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
 				move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 				move |= j << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
+				move |= 1 << moveIsPromotionOffset; //segno che la mossa è una promozione
 
 				if (pieceType == nKings || Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
 
@@ -503,7 +530,14 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 
 					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
 						if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
-							move |= 1 << moveIsCaptureOrPromotionOffset;
+							move |= 1 << moveIsCaptureOffset;
+
+							for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
+								if ((startPos.bitboards[k] >> i) & 1) {
+									move |= k << moveCapturePieceOffset;
+									break;
+								}
+							}
 						}
 						moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
 					}
@@ -512,7 +546,14 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 				}
 				else { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali se il re non è in scacco
 					if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
-						move |= 1 << moveIsCaptureOrPromotionOffset;
+						move |= 1 << moveIsCaptureOffset;
+
+						for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
+							if ((startPos.bitboards[k] >> i) & 1) {
+								move |= k << moveCapturePieceOffset;
+								break;
+							}
+						}
 					}
 
 					moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
@@ -524,7 +565,7 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 			move = 0;
 			move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
 			move |= i << moveEndSquareOffset; //imposto la casella di arrivo
-			move |= none << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
+			move |= 0 << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 
 			if (pieceType == nKings || Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
 				Board::makeMove(move); //faccio la mossa
@@ -533,7 +574,14 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 
 				if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
 					if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
-						move |= 1 << moveIsCaptureOrPromotionOffset;
+						move |= 1 << moveIsCaptureOffset;
+
+						for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
+							if ((startPos.bitboards[k] >> i) & 1) {
+								move |= k << moveCapturePieceOffset;
+								break;
+							}
+						}
 					}
 					moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
 				}
@@ -542,7 +590,14 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 			}
 			else { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali se il re non è in scacco
 				if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
-					move |= 1 << moveIsCaptureOrPromotionOffset;
+					move |= 1 << moveIsCaptureOffset;
+
+					for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
+						if ((startPos.bitboards[k] >> i) & 1) {
+							move |= k << moveCapturePieceOffset;
+							break;
+						}
+					}
 				}
 
 				moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali

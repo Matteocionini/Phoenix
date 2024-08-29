@@ -7,12 +7,12 @@
 typedef enum { //questo enum serve per poter fare un accesso parametrizzato alle bitboard, in modo da rendere il codice più leggibile
 	nWhite = 0, //bitboard contenente tutti i pezzi bianchi
 	nBlack, //bitboard contenente tutti i pezzi neri
-	nPawns,
-	nBishops,
-	nQueens,
 	nKings,
+	nPawns,
 	nKnights,
-	nRooks
+	nBishops,
+	nRooks,
+	nQueens,
 } bitBoardType;
 
 enum PositionCharacteristicsOffset { //enum contenente le quantità di cui è necessario rightshiftare l'intero da 32 bit contenente le informazioni su una posizione precedente
@@ -48,12 +48,12 @@ struct Position { //struct utilizzato per incapsulare le bitboard relative ad un
 class Board {
 public:
 	static void resetBoard(); //metodo che consente di riportare la scacchiera alla condizione iniziale
-	static void makeMove(const uint16_t& move); //metodo per fare una mossa sulla scacchiera interna
+	static void makeMove(const uint32_t& move); //metodo per fare una mossa sulla scacchiera interna
 	static void makeMove(std::string move); //metodo per eseguire una mossa fornita sottoforma di stringa
 	static void setPosition(std::string fenstring); //metodo che consente di inserire nella scacchiera interna una data posizione
 	static bool isValidMove(std::string move); //metodo per controllare se un token sia effettivamente una mossa valida (vedi formato algebrico puro per le mosse valide)
 	static std::shared_ptr<uint64_t[]> getBitBoards();
-	static void unmakeMove(const uint16_t& move); //metodo che consente di annullare l'ultima mossa effettuata
+	static void unmakeMove(const uint32_t& move); //metodo che consente di annullare l'ultima mossa effettuata
 	static void unmakeMove(int startSquare, int endSquare, char promotionPiece, uint32_t previousPositionInfo); //overload della funzione unmakeMove, che consente di fornire le caratteristiche irreversibili della posizione precedente
 
 	static uint64_t generateRookMoves(const int& startSquare, const uint64_t& blockerBitboard); //metodo che consente di generare le mosse pseudo-legali per una data torre per l'inizializzazione delle magic bitboard
