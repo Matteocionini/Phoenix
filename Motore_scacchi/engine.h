@@ -44,11 +44,12 @@ struct EngineData {
 enum MoveOffsets { //enum in cui sono memorizzate le costanti di cui è necessario rightshiftare l'intero di 16 bit contenente una mossa per accedere alle varie informazioni sulla mossa stessa. In una mossa, i primi 6 bit di questo intero contengono la casella di partenza (a partire da sinistra), i seguenti 6 codificano la casella di arrivo ed i seguenti 3 codificano l'eventuale promozione. I dati sono ordinati in modo da permettere un otimale ordinamento delle mosse da parte dell'algoritmo di ricerca e valutazione delle mosse
 	moveStartSquareOffset = 0,
 	moveEndSquareOffset = 6,
-	moveCapturePieceOffset = 12,
-	moveIsCaptureOffset = 15, //questo bit, quando è 1, segnala che la mossa è una cattura
-	movePromotionPieceOffset = 16, 
-	moveIsPromotionOffset = 19, //flag per sapere se la mossa è una promozione
-	moveIsPVMove = 20 //flag che indica se questa mossa è una PV move, ovvero la miglior mossa della precedente variazione principale
+	moveMovedPieceOffset = 12,
+	moveCapturePieceOffset = 15,
+	moveIsCaptureOffset = 18, //questo bit, quando è 1, segnala che la mossa è una cattura
+	movePromotionPieceOffset = 19, 
+	moveIsPromotionOffset = 22, //flag per sapere se la mossa è una promozione
+	moveIsPVMove = 23 //flag che indica se questa mossa è una PV move, ovvero la miglior mossa della precedente variazione principale
 };
 
 enum MoveBitMasks { //raccolta di tutte le possibili bitmask che possono risultare necessarie per fare accesso alle informazioni contenute nell'intero che codifica una mossa
@@ -58,14 +59,16 @@ enum MoveBitMasks { //raccolta di tutte le possibili bitmask che possono risulta
 	moveIsCaptureBitMask = 1,
 	moveIsPromotionBitMask = 1,
 	moveIsPVMoveBitMask = 1,
-	moveCapturePieceBitMask = 7
+	moveCapturePieceBitMask = 7,
+	moveMovedPieceOffsetBitMask = 7
 };
 
 
 namespace Engine {
 	void engineInit(); //riporta il motore allo stato iniziale
 	void startSearchAndEval(); //dai il via al processo di ricerca e valutazione
-	int miniMax(int depth, int alpha, int beta, bool isWhite); //algoritmo di ricerca ed attraversamento dell'albero di gioco
+	uint32_t miniMaxHandler(int depth, bool isWhite); //funzione usata per dare il via al negamax
+	int miniMax(int depth, int alpha, int beta, bool isWhite, int ply); //algoritmo di ricerca ed attraversamento dell'albero di gioco. L'algoritmo minimax si basa sul fatto che un punteggio favorevole per il bianco è molto positivo (es. + 1000), mentre per il nero è molto negativo (es. -1000). Il bianco è quindi detto giocatore "massimizzatore", mentre il nero è detto giocatore "minimizzatore". L'algoritmo genera, fino ad una profondità determinata, tutte le mosse possibili, ora per il bianco, ora per il nero, e a turno si "immedesima" in entrambi i giocatori: quando tocca al nero, l'algoritmo sceglierà la mossa che garantisce l'arrivo in una posizione con un punteggio più negativo possibile, e viceversa quando tocca al bianco. Il processo viene ripetuto fino a ritornare al nodo di partenza, che riceverà la valutazione del nodo foglia che verrà raggiunto se entrambi i giocatori giocheranno in maniera ottimale. Questo punteggio è un limite inferiore: se il giocatore avversario commetterà delle imprecisioni, sarà possibile ottenere delle posizioni migliori rispetto a quella prevista
 
 	moveArray generateLegalMoves(Position position, bool isWhite); //funzione che si occupa della generazione delle mosse legali
 	void getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int& friendlyPieces, const uint64_t& blockerBitboard, const int& pieceType, const int& startSquare, const bool& isWhite, const int& kingSquare, moveArray& moveList); //funzione che, a partire da una bitboard fornita da una funzione di generazione mosse pseudolegali, genera le mosse effettivamente legali

@@ -77,21 +77,83 @@ void Engine::startSearchAndEval() {
 	Board::resetPreviousPositionCharacteristics();
 }
 
-int Engine::miniMax(int depth, int alpha, int beta, bool isWhite) {
+uint32_t Engine::miniMaxHandler(int depth, bool isWhite) {
 	moveArray moves;
 
-	if (depth == 0) { //se il nodo corrente è un nodo foglia, ritorna la valutazione della posizione
-		//return Engine::evaluate(position);
+	moves = generateLegalMoves(Board::getCurrentPosition(), isWhite);
+}
+
+int Engine::miniMax(int depth, int alpha, int beta, bool isWhite, int ply) {
+	moveArray moves;
+	int bestEval, eval;
+
+	if (depth == 0) { //se il nodo è un nodo foglia, ritorna la valutazione della posizione
+		//return quiescence(); //la quiescence search garantisce di terminare la ricerca su una posizione "tranquilla", ovvero non nel mezzo di una serie di catture
 	}
 
-	moves = generateLegalMoves(Board::getCurrentPosition(), isWhite); //genera le mosse legali disponibili per il giocatore corrente
+	Position currPos = Board::getCurrentPosition();
+	moves = generateLegalMoves(currPos, isWhite);
 
-	if (moves.getSize() == 0) { //se il numero di mosse legali disponibili è 0, il giocatore corrente è sotto scacco matto
-		return isWhite ? INT_MIN : INT_MAX;
+	if (moves.getSize() == 0) { //se non sono disponibili mosse legali
+		if (isKingInCheck(isWhite, currPos, isWhite ? nWhite : nBlack, currPos.bitboards[nWhite] | currPos.bitboards[nBlack], -1)) { //se il re si trova sotto scacco, siamo di fronte ad uno scacco matto
+			return isWhite ? INT_MIN : INT_MAX;
+		}
+		else { //se il re non si trova sotto scacco, siamo di fronte ad un pareggio
+			return 0;
+		}
 	}
 
-	if (isWhite) { //il bianco è il giocatore che deve massimizzare il punteggio
+	sortMoves(moves); //ordina le mosse in maniera da ottimizzare l'alpha-beta pruning
 
+	if (isWhite) {
+		bestEval = INT_MIN;
+
+		for (int i = 0; i < moves.getSize(); i++) {
+			Board::makeMove(moves.getElem(i));
+			ply++;
+			eval = miniMax(depth - 1, alpha, beta, !isWhite, ply);
+			ply--;
+			Board::unmakeMove(moves.getElem(i));
+
+			if (eval > bestEval) {
+				bestEval = eval;
+			}
+
+			if (eval > alpha) {
+				alpha = eval;
+			}
+
+			if (beta <= alpha) { //in questo caso, se beta è minore o uguale ad alpha, vuol dire che il nodo corrente fallisce alto (ovvero la posizione) è troppo favorevole per il bianco, e il nero teoricamente non permetterà il raggiungimento di una tale posizione
+				return alpha; //ritornando alpha, sicuramente il nero non sceglierà mai questo nodo, in quanto è disponibile un altro nodo
+			}
+		}
+
+		return bestEval;
+	}
+	else {
+		bestEval = INT_MAX;
+
+		for (int i = 0; i < moves.getSize(); i++) {
+			Board::makeMove(moves.getElem(i));
+			ply++;
+			eval = miniMax(depth - 1, alpha, beta, !isWhite, ply);
+			ply--;
+			Board::unmakeMove(moves.getElem(i));
+
+			if (eval < bestEval) {
+				bestEval = eval;
+			}
+
+			if (eval < beta) {
+				beta = eval;
+			}
+
+			if (beta <= alpha) { //in questo caso, se beta è minore o uguale ad alpha, vuol dire che il bianco aveva un'opzione migliore in un altro ramo dell'albero di gioco, per cui non si giugerà in tale posizione
+				return alpha; //ritornando alpha, sicuramente il nero non sceglierà mai questo nodo, in quanto è disponibile un altro nodo
+			}
+		}
+
+		return bestEval;
 	}
 }
 
@@ -514,11 +576,13 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 		i = std::countr_zero(moves);
 		moves = moves ^ ((uint64_t)1 << i);
 
+		move = 0;
+		move |= pieceType << moveMovedPieceOffset; //salvo all'interno della mossa il tipo di pezzo che si è mosso
+		move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
+		move |= i << moveEndSquareOffset; //imposto la casella di arrivo
+
 		if (pieceType == nPawns && ((isWhite && i >= 56) || (!isWhite && i <= 7))) { //se il pezzo che si muove è un pedone che deve essere promosso, genero tutte le promozioni
 			for (int j = 4; j < 8; j++) {
-				move = 0;
-				move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
-				move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 				move |= j << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 				move |= 1 << moveIsPromotionOffset; //segno che la mossa è una promozione
 
@@ -562,9 +626,6 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 
 		}
 		else {
-			move = 0;
-			move |= startSquare << moveStartSquareOffset; //la casella di partenza è la stessa per tutte le mosse
-			move |= i << moveEndSquareOffset; //imposto la casella di arrivo
 			move |= 0 << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 
 			if (pieceType == nKings || Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
