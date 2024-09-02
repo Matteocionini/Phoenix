@@ -5,6 +5,7 @@
 
 #include "engine.h"
 #include "boardHelper.h"
+#include "uciHandler.h"
 
 
 EngineData Engine::engineData; //struct contenente i dati del motore
@@ -57,9 +58,9 @@ void Engine::startSearchAndEval() {
 	if (engineData.m_maxDepth != -1) {
 		maxDepth = engineData.m_maxDepth;
 	}
+
+	negaMaxHandler(8);
 	
-
-
 	//reset di tutte le variabili search-specific
 	engineData.m_moveList.clear();
 	engineData.m_maxDepth = -1;
@@ -77,87 +78,362 @@ void Engine::startSearchAndEval() {
 	Board::resetPreviousPositionCharacteristics();
 }
 
-uint32_t Engine::miniMaxHandler(int depth, bool isWhite) {
+void Engine::negaMaxHandler(int depth) {
 	moveArray moves;
+	int scores[256] = { 0 }; //vettore in cui salvo i punteggi associati ad ogni singola mossa
+	uint32_t bestMove;
+	int bestScore = INT_MIN;
 
-	moves = generateLegalMoves(Board::getCurrentPosition(), isWhite);
-}
+	moves = generateLegalMoves(Engine::engineData.m_isWhite);
 
-int Engine::miniMax(int depth, int alpha, int beta, bool isWhite, int ply) {
-	moveArray moves;
-	int bestEval, eval;
-
-	if (depth == 0) { //se il nodo è un nodo foglia, ritorna la valutazione della posizione
-		//return quiescence(); //la quiescence search garantisce di terminare la ricerca su una posizione "tranquilla", ovvero non nel mezzo di una serie di catture
+	engineData.m_nodesSearched = 0;
+	
+	for (int i = 0; i < moves.getSize(); i++) {
+		Board::makeMove(moves.getElem(i));
+		scores[i] = negaMax(3, negInfinity, posInfinity, 0); //chiamata iniziale
+		Board::unmakeMove(moves.getElem(i));
 	}
 
-	Position currPos = Board::getCurrentPosition();
-	moves = generateLegalMoves(currPos, isWhite);
+	for (int i = 0; i < moves.getSize(); i++) {
+		if (scores[i] > bestScore) {
+			bestScore = scores[i];
+			bestMove = moves.getElem(i);
+		}
+	}
+
+	uciHandler::postBestMove(bestMove);
+}
+
+int Engine::negaMax(int depth, int alpha, int beta, int ply) {
+	moveArray moves;
+	int eval;
+
+	engineData.m_nodesSearched++;
+
+	if (depth == 0) { //se il nodo è un nodo foglia, ritorna la valutazione della posizione
+		return -quiescence(-beta, -alpha); //la quiescence search garantisce di terminare la ricerca su una posizione "tranquilla", ovvero non nel mezzo di una serie di catture
+	}
+
+	moves = generateLegalMoves(Engine::engineData.m_isWhite);
 
 	if (moves.getSize() == 0) { //se non sono disponibili mosse legali
-		if (isKingInCheck(isWhite, currPos, isWhite ? nWhite : nBlack, currPos.bitboards[nWhite] | currPos.bitboards[nBlack], -1)) { //se il re si trova sotto scacco, siamo di fronte ad uno scacco matto
-			return isWhite ? INT_MIN : INT_MAX;
+		if (isKingInCheck(Engine::engineData.m_isWhite, Engine::engineData.m_isWhite ? nWhite : nBlack, Board::m_positionBitBoards[nWhite] | Board::m_positionBitBoards[nBlack], -1)) { //se il re si trova sotto scacco, siamo di fronte ad uno scacco matto
+			return negInfinity;
 		}
 		else { //se il re non si trova sotto scacco, siamo di fronte ad un pareggio
 			return 0;
 		}
 	}
 
-	sortMoves(moves); //ordina le mosse in maniera da ottimizzare l'alpha-beta pruning
+	//sortMoves(moves); //ordina le mosse in maniera da ottimizzare l'alpha-beta pruning
+	//TODO: implementare il move ordering
 
-	if (isWhite) {
-		bestEval = INT_MIN;
+	for (int i = 0; i < moves.getSize(); i++) {
+		ply++;
+		Board::makeMove(moves.getElem(i));
+		eval = -negaMax(depth - 1, -beta, -alpha, ply);
+		Board::unmakeMove(moves.getElem(i));
+		ply--;
 
-		for (int i = 0; i < moves.getSize(); i++) {
-			Board::makeMove(moves.getElem(i));
-			ply++;
-			eval = miniMax(depth - 1, alpha, beta, !isWhite, ply);
-			ply--;
-			Board::unmakeMove(moves.getElem(i));
-
-			if (eval > bestEval) {
-				bestEval = eval;
-			}
-
-			if (eval > alpha) {
-				alpha = eval;
-			}
-
-			if (beta <= alpha) { //in questo caso, se beta è minore o uguale ad alpha, vuol dire che il nodo corrente fallisce alto (ovvero la posizione) è troppo favorevole per il bianco, e il nero teoricamente non permetterà il raggiungimento di una tale posizione
-				return alpha; //ritornando alpha, sicuramente il nero non sceglierà mai questo nodo, in quanto è disponibile un altro nodo
-			}
+		if (eval >= beta) { //se la valutazione della posizione è maggiore o uguale a beta, vuol dire che il punteggio minimo garantito raggiungibile in	questa posizione è maggiore rispetto al punteggio raggiungibile in un'altra posizione raggiungibile: l'avversario non lascerà che noi arriviamo in questa posizione, per cui non è necessario cercare oltre
+			return beta; //ritornando beta, do un limite inferiore alla valutazione del nodo
 		}
 
-		return bestEval;
-	}
-	else {
-		bestEval = INT_MAX;
-
-		for (int i = 0; i < moves.getSize(); i++) {
-			Board::makeMove(moves.getElem(i));
-			ply++;
-			eval = miniMax(depth - 1, alpha, beta, !isWhite, ply);
-			ply--;
-			Board::unmakeMove(moves.getElem(i));
-
-			if (eval < bestEval) {
-				bestEval = eval;
-			}
-
-			if (eval < beta) {
-				beta = eval;
-			}
-
-			if (beta <= alpha) { //in questo caso, se beta è minore o uguale ad alpha, vuol dire che il bianco aveva un'opzione migliore in un altro ramo dell'albero di gioco, per cui non si giugerà in tale posizione
-				return alpha; //ritornando alpha, sicuramente il nero non sceglierà mai questo nodo, in quanto è disponibile un altro nodo
-			}
+		if (eval > alpha) { //se eval è maggiore di alpha, ho trovato una nuova miglior mossa
+			alpha = eval;
 		}
-
-		return bestEval;
 	}
+
+	return alpha; //se arrivo qui, il nodo ha fallito in basso, ovvero ha raggiunto una valutazione minore o uguale ad alpha. Alpha rappresenta un limite superiore alla valutazione del nodo
 }
 
-moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
+int Engine::evaluate() {
+	int score = 0;
+
+	//bitboard contenenti i singoli pezzi
+	uint64_t whitePawns = Board::m_positionBitBoards[nPawns] & Board::m_positionBitBoards[nWhite];
+	uint64_t whiteBishops = Board::m_positionBitBoards[nBishops] & Board::m_positionBitBoards[nWhite];
+	uint64_t whiteKnights = Board::m_positionBitBoards[nKnights] & Board::m_positionBitBoards[nWhite];
+	uint64_t whiteRooks = Board::m_positionBitBoards[nRooks] & Board::m_positionBitBoards[nWhite];
+	uint64_t whiteQueens = Board::m_positionBitBoards[nQueens] & Board::m_positionBitBoards[nWhite];
+
+	uint64_t blackPawns = Board::m_positionBitBoards[nPawns] & Board::m_positionBitBoards[nBlack];
+	uint64_t blackBishops = Board::m_positionBitBoards[nBishops] & Board::m_positionBitBoards[nBlack];
+	uint64_t blackKnights = Board::m_positionBitBoards[nKnights] & Board::m_positionBitBoards[nBlack];
+	uint64_t blackRooks = Board::m_positionBitBoards[nRooks] & Board::m_positionBitBoards[nBlack];
+	uint64_t blackQueens = Board::m_positionBitBoards[nQueens] & Board::m_positionBitBoards[nBlack];
+
+	//conto il valore dei pezzi del bianco
+	score += std::popcount(whitePawns) * pawnValue;
+	score += std::popcount(whiteBishops) * bishopValue;
+	score += std::popcount(whiteKnights) * knightValue;
+	score += std::popcount(whiteRooks) * rookValue;
+	score += std::popcount(whiteQueens) * queenValue;
+
+	//conto il valore dei pezzi del nero
+	score -= std::popcount(blackPawns) * pawnValue;
+	score -= std::popcount(blackBishops) * bishopValue;
+	score -= std::popcount(blackKnights) * knightValue;
+	score -= std::popcount(blackRooks) * rookValue;
+	score -= std::popcount(blackQueens) * queenValue;
+
+	return score * Engine::engineData.m_isWhite;
+}
+
+int Engine::quiescence(int alpha, int beta) {
+	moveArray possibleMoves;
+	int standPat = evaluate(); //il punteggio statico della posizione è una sorta di "limite inferiore" al punteggio raggungibile nella posizione. Questa affermazione si basa sull'ipotesi che in ogni posizione esista sempre almeno una mossa in grado di migliorare o uguagliare la valutazione statica della posizione stessa
+	int score;
+	Position pos;
+	int capturedPiece, captureValue;
+
+	engineData.m_nodesSearched++;
+
+	if (standPat + queenValue < alpha) { //delta-pruning: se una posizione è così terribile che neanche catturare una regina può migliorare le cose, ignora la posizione
+		return alpha;
+	}
+
+	if (standPat >= beta) { //in questo caso il nodo fallisce alto, ovvero la valutazione della posizione è troppo alta e l'avversario non permetterà di giungere qui
+		return beta;
+	}
+
+	if (standPat > alpha) { //se la valutazione della posizione è maggiore di alpha, ho trovato una nuova miglior mossa
+		alpha = standPat;
+	}
+
+	possibleMoves = generateLegalMoves(Engine::engineData.m_isWhite); //genero tutte le possibili mosse nella posizione
+
+	for (int i = 0; i < possibleMoves.getSize(); i++) { //gioco solamente le catture al fine di giungere ad una posizione quiescente
+		if ((possibleMoves.getElem(i) >> moveIsCaptureOffset) & moveIsCaptureBitMask) {
+			//BoardHelper::printBoard();
+			//uciHandler::printMove(possibleMoves.getElem(i));
+			//std::cout << std::endl;
+			
+			capturedPiece = (possibleMoves.getElem(i) >> moveCapturePieceOffset) & moveCapturePieceBitMask;
+
+			switch (capturedPiece) {
+			case nPawns: {
+				captureValue = pawnValue;
+				break;
+			}
+			case nKnights: {
+				captureValue = knightValue;
+				break;
+			}
+			case nBishops: {
+				captureValue = bishopValue;
+				break;
+			}
+			case nRooks: {
+				captureValue = rookValue;
+				break;
+			}
+			case nQueens: {
+				captureValue = queenValue;
+				break;
+			}
+			}
+
+			if (standPat + captureValue + delta < alpha) { //delta pruning: se la cattura risulta inutile nel migliorare la posizione, non la considero e passo oltre
+				continue;
+			}
+			
+
+			if (seeCapture(possibleMoves.getElem(i), !engineData.m_isWhite) >= 0) {
+				Board::makeMove(possibleMoves.getElem(i)); //simula la cattura
+				//BoardHelper::printBoard();
+				score = -quiescence(-beta, -alpha); //continua la quiescence search
+				Board::unmakeMove(possibleMoves.getElem(i)); //ritorna indietro
+
+				if (score >= beta) { //fallimento alto
+					return beta;
+				}
+				if (score > alpha) { //nuova miglior mossa
+					alpha = score;
+				}
+			}
+		}
+	}
+
+	return alpha;
+}
+
+int Engine::seeCapture(uint32_t move, bool isWhite) { 
+	int value = 0;
+	int endSquare = (move >> moveEndSquareOffset) & moveEndSquareBitMask;
+	int capturedPiece;
+
+	//BoardHelper::printBoard();
+
+	capturedPiece = (move >> moveCapturePieceOffset) & moveCapturePieceBitMask;
+
+	switch (capturedPiece) {
+	case nPawns: {
+		value += pawnValue;
+		break;
+	}
+	case nKnights: {
+		value += knightValue;
+		break;
+	}
+	case nBishops: {
+		value += bishopValue;
+		break;
+	}
+	case nRooks: {
+		value += rookValue;
+		break;
+	}
+	case nQueens: {
+		value += queenValue;
+		break;
+	}
+	}
+
+	Board::makeMove(move);
+	//BoardHelper::printBoard();
+	value -= see(endSquare, !isWhite);
+	Board::unmakeMove(move);
+
+	return value;
+}
+
+int Engine::see(int square, bool isWhite) {
+	int value = 0, attackerSquare = getLeastValuableAttacker(square, isWhite), capturedPiece = 0, pieceType;
+	uint32_t possibleMovesBitboard;
+	moveArray moves;
+
+	//BoardHelper::printBoard();
+
+	if (attackerSquare) {
+		possibleMovesBitboard = (uint64_t)1 << square;
+
+		for (int i = 3; i < 8; i++) {
+			if ((Board::m_positionBitBoards[isWhite ? nWhite : nBlack] >> attackerSquare) & 1) {
+				pieceType = i;
+				break;
+			}
+		}
+
+		getLegalMovesFromPossibleSquaresBitboard(possibleMovesBitboard, isWhite ? nWhite : nBlack, Board::m_positionBitBoards[nWhite] | Board::m_positionBitBoards[nBlack], pieceType, attackerSquare, isWhite, std::countr_zero(Board::m_positionBitBoards[isWhite ? nWhite : nBlack] & Board::m_positionBitBoards[nKings]), moves);
+
+		if (moves.getSize() > 0) {
+			capturedPiece = (moves.getElem(0) >> moveCapturePieceOffset) & moveCapturePieceBitMask;
+
+			switch (capturedPiece) {
+			case nPawns: {
+				value += pawnValue;
+				break;
+			}
+			case nKnights: {
+				value += knightValue;
+				break;
+			}
+			case nBishops: {
+				value += bishopValue;
+				break;
+			}
+			case nRooks: {
+				value += rookValue;
+				break;
+			}
+			case nQueens: {
+				value += queenValue;
+				break;
+			}
+			}
+
+			Board::makeMove(moves.getElem(0));
+			//BoardHelper::printBoard();
+			value -= see(square, !isWhite);
+			Board::unmakeMove(moves.getElem(0));
+		}
+	}
+
+	return value;
+}
+
+int Engine::getLeastValuableAttacker(int square, bool isWhite) {
+	uint64_t squareBitboard = (uint64_t)1 << square; //bitboard il cui unico bit diverso da 0 è quello del della casella di interesse
+	uint64_t attackingPieces = Board::m_positionBitBoards[isWhite ? nWhite : nBlack]; //bitboard contenente soltanto i pezzi che possono attaccare la casella di interesse, ovvero i pezzi alleati
+	uint64_t dangerousPieces = 0; //bitboard contenente i pezzi pericolosi (es. lungo una diagonale sono pericolosi un alfiere o una regina nemici...)
+	uint64_t dangerousSquares = 0; //bitboard contenente le caselle controllate attualmente
+	uint64_t blockerBitboard = Board::m_positionBitBoards[nWhite] | Board::m_positionBitBoards[nBlack];
+	int friendlyPieces = isWhite ? nWhite : nBlack;
+
+	//controllo se c'è un pezzo nemico sulla casella di interesse
+	if (((Board::m_positionBitBoards[!friendlyPieces] >> square) & 1) == 0) { //se non c'è un pezzo nemico sulla casella di interesse, per forza non vi è alcun attaccante
+		return 0;
+	}
+
+	//controllo ora le caselle da cui un pedone potrebbe attaccare la casella di interesse
+	if (isWhite && square > 15) { //se il giocatore è bianco e la casella è sopra la riga 2
+		dangerousSquares = 0;
+		//le caselle pericolose sono quella in basso a sinistra ed in basso a destra
+		if (!BoardHelper::isOnLeftBorder(square)) { //prima di controllare la casella in basso a sinistra verifico che la casella non si trovi sul bordo sinistro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (square - 9));
+		}
+		if (!BoardHelper::isOnRightBorder(square)) { //prima di controllare la casella in basso a destra verifico che la casella non si trovi sul bordo destro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (square - 7));
+		}
+	}
+	else if (!isWhite && square < 48) { //se il giocatore è nero ed è sotto la riga 7
+		dangerousSquares = 0;
+		//le caselle pericolose sono quella in alto a sinistra e quella in alto a destra
+		if (!BoardHelper::isOnLeftBorder(square)) { //prima di controllare la casella in alto a sinistra verifico che la casella non si trovi sul bordo sinistro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (square + 7));
+		}
+		if (!BoardHelper::isOnRightBorder(square)) { //prima di controllare la casella in alto a destra verifico che il re non si trovi sul bordo destro della scacchiera
+			dangerousSquares = dangerousSquares | ((uint64_t)1 << (square + 9));
+		}
+	}
+	else { //se si arriva qui, il re non può essere messo sotto scacco da un pedone
+		dangerousSquares = 0;
+	}
+
+	dangerousPieces = 0 | (Board::m_positionBitBoards[nPawns] & attackingPieces);
+
+	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pedone che può attaccare la casella. Trovo la sua posizione
+		return std::countr_zero(dangerousPieces & dangerousSquares);
+	}
+
+	//controllo ora se il re può essere messo sotto attacco da un cavallo
+	dangerousSquares = Board::knightMoves(square);
+	dangerousPieces = 0 | (Board::m_positionBitBoards[nKnights] & attackingPieces);
+
+	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto attacco la casella
+		return std::countr_zero(dangerousPieces & dangerousSquares);
+	}
+
+	//controllo le diagonali libere verso la casella
+	dangerousSquares = Board::bishopMoves(square, blockerBitboard); //questa bitboard ha i bit impostati ad 1 solo lungo le diagonali libere che conducono verso il re
+	dangerousPieces = (Board::m_positionBitBoards[nBishops]) & attackingPieces; //bitboard contenente i pezzi pericolosi lungo le diagonali, ovvero alfieri e regine nemici
+
+	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un alfiere che attacca la casella
+		return std::countr_zero(dangerousPieces & dangerousSquares);
+	}
+
+	//controllo ora le "righe" libere verso la casella
+	dangerousSquares = Board::rookMoves(square, blockerBitboard); //questa bitboard ha i bit impostati ad 1 solo lungo le righe libere che conducono verso il re
+	dangerousPieces = 0 | ((Board::m_positionBitBoards[nRooks]) & attackingPieces); //bitboard contenente solo i pezzi pericolosi lungo le righe,le torri
+
+	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è una torre che tiene sotto attacco la casella
+		return std::countr_zero(dangerousPieces & dangerousSquares);
+	}
+
+	//controllo infine se una regina tiene sotto attacco la casella
+
+	dangerousSquares = Board::queenMoves(square, blockerBitboard);
+	dangerousPieces = Board::m_positionBitBoards[nQueens] & attackingPieces;
+
+	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è una regina che tiene sotto attacco la casella
+		return std::countr_zero(dangerousPieces & dangerousSquares);
+	}
+
+	return 0;
+}
+
+moveArray Engine::generateLegalMoves(bool isWhite) {
 	uint64_t blockerBitboard = 0; //bitboard contenente tutti i pezzi sulla scacchiera, da passare alle varie funzioni di generazione mosse per generare le mosse pseudolegali
 	int friendlyPieces = isWhite ? nWhite : nBlack; //variabile utilizzata per sapere quale tra la bitboard dei pezzi neri e quella dei pezzi bianchi è da considerare come bitboard dei pezzi alleati
 	moveArray moveList; //lista delle mosse legali generate
@@ -166,7 +442,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 	uint16_t move = 0; //bitboard contenente temporaneamente una mossa
 	int pieceType;
 	moveArray legalMoves; //vettore usato per memorizzare temporaneamente delle mosse
-	uint64_t bitboardToWorkOn = position.bitboards[friendlyPieces]; //bitboard usata per iterare sulla scacchiera
+	uint64_t bitboardToWorkOn = Board::m_positionBitBoards[friendlyPieces]; //bitboard usata per iterare sulla scacchiera
 	int totalShiftAmount = 0; //numero di posizioni di cui ho shiftato la bitboard su cui sto lavorando
 	int i;
 	int currSquare; //quadrato che sto considerando per le mosse
@@ -183,11 +459,11 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		pinRays[i] = UINT64_MAX; //inizializzazione del vettore pinRays
 	}
 
-	kingSquare = std::countr_zero(position.bitboards[nKings] & position.bitboards[friendlyPieces]);
+	kingSquare = std::countr_zero(Board::m_positionBitBoards[nKings] & Board::m_positionBitBoards[friendlyPieces]);
 
-	blockerBitboard = position.bitboards[nWhite] | position.bitboards[nBlack];
+	blockerBitboard = Board::m_positionBitBoards[nWhite] | Board::m_positionBitBoards[nBlack];
 
-	dangerousSquares = Board::queenMoves(kingSquare, blockerBitboard) & position.bitboards[friendlyPieces]; //in questa bitboard sono memorizzati i quadrati che è necessario controllare per vedere se i pezzi all'interno di questi sono pinnati
+	dangerousSquares = Board::queenMoves(kingSquare, blockerBitboard) & Board::m_positionBitBoards[friendlyPieces]; //in questa bitboard sono memorizzati i quadrati che è necessario controllare per vedere se i pezzi all'interno di questi sono pinnati
 
 	//BoardHelper::printLegalMoves(dangerousSquares);
 
@@ -195,21 +471,21 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		i = std::countr_zero(dangerousSquares); //per ogni pezzo pericoloso
 		dangerousSquares = dangerousSquares ^ ((uint64_t)1 << i);
 
-		temp = ((Board::bishopMoves(i, blockerBitboard) & position.bitboards[!friendlyPieces])) & (position.bitboards[nBishops] | position.bitboards[nQueens]); //bitboard in cui sono memorizzate le donne/alfieri che potrebbero star pinnando il pezzo
+		temp = ((Board::bishopMoves(i, blockerBitboard) & Board::m_positionBitBoards[!friendlyPieces])) & (Board::m_positionBitBoards[nBishops] | Board::m_positionBitBoards[nQueens]); //bitboard in cui sono memorizzate le donne/alfieri che potrebbero star pinnando il pezzo
 		bishop = true;
 
 		if (temp == 0) { //bitboard in cui sono memorizzate le torri/donne che potrebbero star pinnando il pezzo
-			temp = ((Board::rookMoves(i, blockerBitboard) & position.bitboards[!friendlyPieces])) & (position.bitboards[nRooks] | position.bitboards[nQueens]);
+			temp = ((Board::rookMoves(i, blockerBitboard) & Board::m_positionBitBoards[!friendlyPieces])) & (Board::m_positionBitBoards[nRooks] | Board::m_positionBitBoards[nQueens]);
 			bishop = false;
 		}
 
 	checkPin:
 		while (temp) {
 			if (bishop) {
-				temp2 = ((position.bitboards[friendlyPieces] & position.bitboards[nKings]) & Board::bishopMoves(std::countr_zero(temp), blockerBitboard ^ (uint64_t)1 << i));
+				temp2 = ((Board::m_positionBitBoards[friendlyPieces] & Board::m_positionBitBoards[nKings]) & Board::bishopMoves(std::countr_zero(temp), blockerBitboard ^ (uint64_t)1 << i));
 			}
 			else {
-				temp2 = ((position.bitboards[friendlyPieces] & position.bitboards[nKings]) & Board::rookMoves(std::countr_zero(temp), blockerBitboard ^ (uint64_t)1 << i));
+				temp2 = ((Board::m_positionBitBoards[friendlyPieces] & Board::m_positionBitBoards[nKings]) & Board::rookMoves(std::countr_zero(temp), blockerBitboard ^ (uint64_t)1 << i));
 			}
 
 			//BoardHelper::printBoard(position);
@@ -260,7 +536,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		}
 
 		if (temp == 0 && bishop) {
-			temp = ((Board::rookMoves(i, blockerBitboard) & position.bitboards[!friendlyPieces])) & (position.bitboards[nRooks] | position.bitboards[nQueens]);
+			temp = ((Board::rookMoves(i, blockerBitboard) & Board::m_positionBitBoards[!friendlyPieces])) & (Board::m_positionBitBoards[nRooks] | Board::m_positionBitBoards[nQueens]);
 			bishop = false;
 			goto checkPin;
 		}
@@ -280,7 +556,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		currSquare = totalShiftAmount + i;
 		
 		for (pieceType = 2; pieceType < nBitboards; pieceType++) { //identifico il tipo di pezzo che si sta muovendo
-			if ((position.bitboards[pieceType] >> (currSquare)) & 1) {
+			if ((Board::m_positionBitBoards[pieceType] >> (currSquare)) & 1) {
 				break;
 			}
 		}
@@ -313,11 +589,15 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		default: { //se arrivo qui c'è decisamente un problema
 			std::cout << "Siamo alla casella: " << i << std::endl;
 			//BoardHelper::printLegalMoves(position.bitboards[friendlyPieces]);
-			moves = position.bitboards[friendlyPieces];
+			moves = Board::m_positionBitBoards[friendlyPieces];
 		}
 		}
 
-		moves = moves & (~position.bitboards[friendlyPieces]) & pinRays[currSquare]; //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili. Faccio in modo, inoltre che se il pezzo è pinnato esso non possa muoversi lasciando il re in scacco
+		if (currSquare > 63) {
+			BoardHelper::printBoard();
+		}
+
+		moves = moves & (~Board::m_positionBitBoards[friendlyPieces]) & pinRays[currSquare]; //le funzioni di generazione di mosse pseudocasuali trattano tutti i pezzi come fossero pezzi nemici. Effettuando un xor tra bitboard dei pezzi alleati e bitboard delle mosse possibili, rimuovo la cattura dei pezzi alleati dalle mosse possibili. Faccio in modo, inoltre che se il pezzo è pinnato esso non possa muoversi lasciando il re in scacco
 
 		legalMoves.Reset();
 
@@ -329,8 +609,13 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 
 		legalMoves.Reset();
 		
-		bitboardToWorkOn = bitboardToWorkOn >> (i + 1);
-
+		if (i + 1 > 63) {
+			bitboardToWorkOn = 0;
+		}
+		else {
+			bitboardToWorkOn = bitboardToWorkOn >> (i + 1);
+		}
+		
 		totalShiftAmount += i + 1;
 	}
 
@@ -338,7 +623,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 	//std::cout << "Si puo' arroccare corto: " << kingCanCastleShort(isWhite, position, friendlyPieces, blockerBitboard) << std::endl;
 
 	//la funzione kingMoves di default non restituisce le eventuali mosse di arrocco possibili, per cui esse vengono aggiunte ora
-	if (kingCanCastleLong(isWhite, position, friendlyPieces, blockerBitboard)) {
+	if (kingCanCastleLong(isWhite, friendlyPieces, blockerBitboard)) {
 		move = 0;
 		move |= (kingSquare - 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
@@ -347,7 +632,7 @@ moveArray Engine::generateLegalMoves(Position position, bool isWhite) {
 		moveList.pushBack(move);
 	}
 
-	if (kingCanCastleShort(isWhite, position, friendlyPieces, blockerBitboard)) {
+	if (kingCanCastleShort(isWhite, friendlyPieces, blockerBitboard)) {
 		move = 0;
 		move |= (kingSquare + 2) << moveEndSquareOffset;
 		move |= (kingSquare) << moveStartSquareOffset;
@@ -366,7 +651,7 @@ uint64_t Engine::perft(int depth, bool first) {
 	uint32_t move;
 
 	//bulk-counting
-	generatedMoves = Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
+	generatedMoves = Engine::generateLegalMoves(Engine::engineData.m_isWhite);
 
 	if (depth == 1 && !first) {
 		return generatedMoves.getSize();
@@ -421,9 +706,9 @@ uint64_t Engine::perft(int depth, bool first) {
 	return moveCount;
 }
 
-bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard, int kingSquare) {
-	uint64_t kingBitboard = position.bitboards[friendlyPieces] & position.bitboards[nKings]; //bitboard il cui unico bit diverso da 0 è quello relativo alla casella contenente il re alleato
-	uint64_t enemyPieces = position.bitboards[!friendlyPieces]; //bitboard contenente soltanto i pezzi nemici
+bool Engine::isKingInCheck(const bool& isWhite, const int& friendlyPieces, const uint64_t& blockerBitboard, int kingSquare) {
+	uint64_t kingBitboard = Board::m_positionBitBoards[friendlyPieces] & Board::m_positionBitBoards[nKings]; //bitboard il cui unico bit diverso da 0 è quello relativo alla casella contenente il re alleato
+	uint64_t enemyPieces = Board::m_positionBitBoards[!friendlyPieces]; //bitboard contenente soltanto i pezzi nemici
 	uint64_t dangerousPieces = 0; //bitboard contenente i pezzi pericolosi (es. lungo una diagonale sono pericolosi un alfiere o una regina nemici...)
 	uint64_t dangerousSquares = 0; //bitboard contenente le caselle controllate attualmente
 
@@ -433,7 +718,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 
 	//inizio controllando le diagonali libere verso il re
 	dangerousSquares = Board::bishopMoves(kingSquare, blockerBitboard); //questa bitboard ha i bit impostati ad 1 solo lungo le diagonali libere che conducono verso il re
-	dangerousPieces = (position.bitboards[nBishops] | position.bitboards[nQueens]) & enemyPieces; //bitboard contenente i pezzi pericolosi lungo le diagonali, ovvero alfieri e regine nemici
+	dangerousPieces = (Board::m_positionBitBoards[nBishops] | Board::m_positionBitBoards[nQueens]) & enemyPieces; //bitboard contenente i pezzi pericolosi lungo le diagonali, ovvero alfieri e regine nemici
 
 	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto scacco il re
 		return true;
@@ -441,7 +726,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 
 	//controllo ora le "righe" libere verso il re
 	dangerousSquares = Board::rookMoves(kingSquare, blockerBitboard); //questa bitboard ha i bit impostati ad 1 solo lungo le righe libere che conducono verso il re
-	dangerousPieces = 0 | ((position.bitboards[nRooks] | position.bitboards[nQueens]) & enemyPieces); //bitboard contenente solo i pezzi pericolosi lungo le righe, ovvero regine e torri nemiche
+	dangerousPieces = 0 | ((Board::m_positionBitBoards[nRooks] | Board::m_positionBitBoards[nQueens]) & enemyPieces); //bitboard contenente solo i pezzi pericolosi lungo le righe, ovvero regine e torri nemiche
 
 	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto scacco il re
 		return true;
@@ -475,7 +760,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 		dangerousSquares = 0;
 	}
 
-	dangerousPieces = 0 | (position.bitboards[nPawns] & enemyPieces);
+	dangerousPieces = 0 | (Board::m_positionBitBoards[nPawns] & enemyPieces);
 
 	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto scacco il re
 		return true;
@@ -483,7 +768,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 
 	//controllo ora se il re può essere messo sotto attacco da un cavallo
 	dangerousSquares = Board::knightMoves(kingSquare);
-	dangerousPieces = 0 | (position.bitboards[nKnights] & enemyPieces);
+	dangerousPieces = 0 | (Board::m_positionBitBoards[nKnights] & enemyPieces);
 
 	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto scacco il re
 		return true;
@@ -491,7 +776,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 
 	//controllo, infine, se il re è sotto scacco da parte del re nemico
 	dangerousSquares = Board::kingMoves(kingSquare);
-	dangerousPieces = 0 | (position.bitboards[nKings] & enemyPieces);
+	dangerousPieces = 0 | (Board::m_positionBitBoards[nKings] & enemyPieces);
 
 	if ((dangerousPieces & dangerousSquares) != 0) { //se le due bitboard precedentemente impostate presentano un bit acceso in comune, vi è un pezzo che tiene sotto scacco il re
 		return true;
@@ -500,7 +785,7 @@ bool Engine::isKingInCheck(const bool& isWhite, const Position& position, const 
 	return false;
 }
 
-bool Engine::kingCanCastleLong(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard) {
+bool Engine::kingCanCastleLong(const bool& isWhite, const int& friendlyPieces, const uint64_t& blockerBitboard) {
 	if (isWhite) {
 		if (!engineData.m_whiteCanCastleLong) {
 			return false;
@@ -524,7 +809,7 @@ bool Engine::kingCanCastleLong(const bool& isWhite, const Position& position, co
 
 	int kingSquare = isWhite ? 4 : 60;
 
-	if (isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare) || isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare - 1) || isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare - 2)) {
+	if (isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare) || isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare - 1) || isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare - 2)) {
 		return false;
 	}
 
@@ -534,7 +819,7 @@ bool Engine::kingCanCastleLong(const bool& isWhite, const Position& position, co
 
 	return true;
 }
-bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, const int& friendlyPieces, const uint64_t& blockerBitboard) {
+bool Engine::kingCanCastleShort(const bool& isWhite, const int& friendlyPieces, const uint64_t& blockerBitboard) {
 	if (isWhite) {
 		if (!engineData.m_whiteCanCastleShort) {
 			return false;
@@ -558,7 +843,7 @@ bool Engine::kingCanCastleShort(const bool& isWhite, const Position& position, c
 
 	int kingSquare = isWhite ? 4 : 60;
 
-	if (isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare) || isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare + 1) || isKingInCheck(isWhite, position, friendlyPieces, blockerBitboard, kingSquare + 2)) {
+	if (isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare) || isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare + 1) || isKingInCheck(isWhite, friendlyPieces, blockerBitboard, kingSquare + 2)) {
 		return false;
 	}
 
@@ -569,8 +854,8 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 	uint32_t move = 0; //bitboard in cui costruisco e salvo temporaneamente le mosse legali
 	int actualKingSquare = pieceType == nKings ? -1 : kingSquare;
 	uint64_t dangerousSquares = UINT64_MAX; //variabile in cui salvo le caselle pericolose, ovvero le caselle in cui lo spostamento di un pezzo potrebbe lasciare il re soggetto a scacco
-	Position startPos = Board::getCurrentPosition();
 	int i; //indice
+	bool isKingInCheck;
 
 	while (moves) {
 		i = std::countr_zero(moves);
@@ -586,18 +871,20 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 				move |= j << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 				move |= 1 << moveIsPromotionOffset; //segno che la mossa è una promozione
 
-				if (pieceType == nKings || Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
+				if ((pieceType == nKings) | (isKingInCheck = Engine::isKingInCheck(isWhite, friendlyPieces, Board::m_positionBitBoards[nBlack] | Board::m_positionBitBoards[nWhite], actualKingSquare))) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
+
+					move |= isKingInCheck << moveIsKingInCheckOffset; //segno se il re si trova sotto scacco
 
 					Board::makeMove(move); //faccio la mossa
 
-					Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+					if (!Engine::isKingInCheck(isWhite, friendlyPieces, Board::m_positionBitBoards[nBlack] | Board::m_positionBitBoards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
 
-					if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
-						if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+						Board::unmakeMove(move);
+						if ((Board::m_positionBitBoards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
 							move |= 1 << moveIsCaptureOffset;
 
 							for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
-								if ((startPos.bitboards[k] >> i) & 1) {
+								if ((Board::m_positionBitBoards[k] >> i) & 1) {
 									move |= k << moveCapturePieceOffset;
 									break;
 								}
@@ -605,15 +892,16 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 						}
 						moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
 					}
-
-					Board::unmakeMove(move);
+					else {
+						Board::unmakeMove(move);
+					}
 				}
 				else { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali se il re non è in scacco
-					if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+					if ((Board::m_positionBitBoards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
 						move |= 1 << moveIsCaptureOffset;
 
 						for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
-							if ((startPos.bitboards[k] >> i) & 1) {
+							if ((Board::m_positionBitBoards[k] >> i) & 1) {
 								move |= k << moveCapturePieceOffset;
 								break;
 							}
@@ -628,17 +916,20 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 		else {
 			move |= 0 << movePromotionPieceOffset; //imposto il pezzo a cui il pedone sarà promosso
 
-			if (pieceType == nKings || Engine::isKingInCheck(isWhite, startPos, friendlyPieces, startPos.bitboards[nBlack] | startPos.bitboards[nWhite], actualKingSquare)) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
+			if ((pieceType == nKings) | (isKingInCheck = Engine::isKingInCheck(isWhite, friendlyPieces, Board::m_positionBitBoards[nBlack] | Board::m_positionBitBoards[nWhite], actualKingSquare))) { //se il pezzo che si sta muovendo è il re o il re è sotto scacco, devo fare la mossa per controllare che sia legale
+
+				move |= isKingInCheck << moveIsKingInCheckOffset; //segno se il re si trova sotto scacco
+
 				Board::makeMove(move); //faccio la mossa
 
-				Position positionAfterMove = Board::getCurrentPosition(); //variabile in cui è contenuta la posizione dopo la mossa
+				if (!Engine::isKingInCheck(isWhite, friendlyPieces, Board::m_positionBitBoards[nBlack] | Board::m_positionBitBoards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
+					Board::unmakeMove(move);
 
-				if (!Engine::isKingInCheck(isWhite, positionAfterMove, friendlyPieces, positionAfterMove.bitboards[nBlack] | positionAfterMove.bitboards[nWhite], actualKingSquare)) { //se il re alleato non è sotto scacco, la mossa è legale
-					if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+					if ((Board::m_positionBitBoards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
 						move |= 1 << moveIsCaptureOffset;
 
 						for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
-							if ((startPos.bitboards[k] >> i) & 1) {
+							if ((Board::m_positionBitBoards[k] >> i) & 1) {
 								move |= k << moveCapturePieceOffset;
 								break;
 							}
@@ -646,15 +937,16 @@ void Engine::getLegalMovesFromPossibleSquaresBitboard(uint64_t moves, const int&
 					}
 					moveList.pushBack(move); //aggiungo la mossa alla lista delle mosse legali
 				}
-
-				Board::unmakeMove(move);
+				else {
+					Board::unmakeMove(move);
+				}
 			}
 			else { //altrimenti aggiungo direttamente la mossa alla lista delle mosse legali se il re non è in scacco
-				if ((startPos.bitboards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
+				if ((Board::m_positionBitBoards[!friendlyPieces] >> i) & 1) { //se nella casella di arrivo c'era un pezzo nemico vuol dire che la mossa è stata una cattura
 					move |= 1 << moveIsCaptureOffset;
 
 					for (int k = 2; k < 8; k++) { //identifico il tipo di pezzo catturato
-						if ((startPos.bitboards[k] >> i) & 1) {
+						if ((Board::m_positionBitBoards[k] >> i) & 1) {
 							move |= k << moveCapturePieceOffset;
 							break;
 						}

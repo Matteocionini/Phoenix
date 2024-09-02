@@ -21,8 +21,8 @@ uint64_t Board::m_bishopMagicNumbers[64] = { 1301458728482289659, 24805766715767
 
 int Board::m_bishopShiftAmounts[64] = { 58, 60, 59, 59, 59, 59, 60, 58, 60, 60, 59, 59, 59, 59, 60, 60, 59, 59, 57, 56, 56, 57, 59, 59, 59, 59, 56, 53, 53, 57, 59, 59, 59, 59, 56, 53, 53, 57, 59, 59, 59, 59, 57, 57, 57, 56, 59, 59, 60, 60, 59, 59, 59, 59, 60, 60, 58, 60, 59, 59, 59, 59, 60, 58 };
 
-uint64_t Board::m_bitBoards[nBitboards] = { 0 };
-std::stack<uint32_t> Board::m_previousPositionCharacteristics;
+uint64_t Board::m_positionBitBoards[nBitboards] = { 0 };
+std::stack<uint32_t>* Board::m_previousPositionCharacteristics = new std::stack<uint32_t>;
 
 uint64_t* Board::m_buffer;
 uint64_t* Board::m_rookMagicBitboards[64];
@@ -69,7 +69,7 @@ void Board::makeMove(std::string move) { //la mossa viene fornita nel formato <c
 
 void Board::makeMove(const uint32_t& move) { 
 	int bitboardIndexStart = -895, bitboardIndexEnd = -1;
-	int pieceColorStart, pieceColorEnd;
+	int pieceColorStart = -1, pieceColorEnd;
 	uint32_t previousPositionCharacteristics = 0; //intero da 32 bit contenente le informazioni relative alla posizione precedente
 
 	int startSquare = move & 63;
@@ -88,7 +88,7 @@ void Board::makeMove(const uint32_t& move) {
 	previousPositionCharacteristics |= (Engine::engineData.m_enPassantSquare << enPassantTargetSquareOffset);
 
 	for (int i = 0; i < nBitboards; i++) { //grazie a questo ciclo for posso identificare di che tipo il pezzo sulla casella di partenza e quello sulla casella di arrivo sono
-		if ((m_bitBoards[i] >> startSquare) & 1) { 
+		if ((m_positionBitBoards[i] >> startSquare) & 1) { 
 			if (i >= 2) { //le bitboard di indice da 2 in poi sono le bitboard specifiche dei pezzi, le altre 2 sono le bitboard che identificano il colore del pezzo
 				bitboardIndexStart = i;
 			}
@@ -97,7 +97,7 @@ void Board::makeMove(const uint32_t& move) {
 			}
 		}
 		
-		if (((m_bitBoards[i] >> endSquare) & 1) && i >= 2) {
+		if (((m_positionBitBoards[i] >> endSquare) & 1) && i >= 2) {
 			bitboardIndexEnd = i;
 		}
 	}
@@ -107,37 +107,42 @@ void Board::makeMove(const uint32_t& move) {
 		previousPositionCharacteristics |= (!pieceColorStart << colorOfPrevePieceOnEndSquareOffset);
 
 		pieceColorEnd = !pieceColorStart; //ovvero prendi il colore opposto a quello dela casella di partenza, in quanto non è legale catturare il proprio pezzo
-		m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] = m_bitBoards[bitboardIndexEnd] ^ ((uint64_t)1 << endSquare); 
-		m_bitBoards[pieceColorEnd] = m_bitBoards[pieceColorEnd] ^ ((uint64_t)1 << endSquare);
+		m_positionBitBoards[bitboardIndexEnd] = m_positionBitBoards[bitboardIndexEnd] = m_positionBitBoards[bitboardIndexEnd] ^ ((uint64_t)1 << endSquare); 
+		m_positionBitBoards[pieceColorEnd] = m_positionBitBoards[pieceColorEnd] ^ ((uint64_t)1 << endSquare);
 	}
 
-	m_bitBoards[pieceColorStart] = (m_bitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //aggiornamento della bitboard relativa al colore del pezzo mosso
+	if (pieceColorStart == -1) {
+		BoardHelper::printBoard();
+		uciHandler::printMove(move);
+	}
 
-	m_bitBoards[bitboardIndexStart] = (m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)); //tolgo il pezzo dalla sua casella precedente
+	m_positionBitBoards[pieceColorStart] = (m_positionBitBoards[pieceColorStart] ^ ((uint64_t)1 << startSquare)) | ((uint64_t)1 << endSquare); //aggiornamento della bitboard relativa al colore del pezzo mosso
+
+	m_positionBitBoards[bitboardIndexStart] = (m_positionBitBoards[bitboardIndexStart] ^ ((uint64_t)1 << startSquare)); //tolgo il pezzo dalla sua casella precedente
 	
 
 
 	if (promotionPiece != 0) { //se la mossa è composta da 5 caratteri, essa è sicuramente la promozione di un pedone
 		bitboardIndexStart = promotionPiece;
 
-		m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //metto nella casella di arrivo il pezzo a cui il pedone è stato promosso
+		m_positionBitBoards[bitboardIndexStart] = m_positionBitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //metto nella casella di arrivo il pezzo a cui il pedone è stato promosso
 
 		bitboardIndexStart = nPawns; //riporto il tipo di pezzo iniziale a pedone perché non so se cambiando il tipo di pezzo da pedone a regina/cavallo/torre/alfiere si può rompere qualcosa del codice sotto. Concettualmente ciò è corretto, in quanto il pezzo che è stato mosso effettivamente è un pedone
 	}
 	else {
-		m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //metto nella casella di arrivo il pezzo (aggiorno la bitboard relativa al pezzo)
+		m_positionBitBoards[bitboardIndexStart] = m_positionBitBoards[bitboardIndexStart] | ((uint64_t)1 << endSquare); //metto nella casella di arrivo il pezzo (aggiorno la bitboard relativa al pezzo)
 		
 
 		if (endSquare == Engine::engineData.m_enPassantSquare && bitboardIndexStart == nPawns) { //se la mossa che è appena stata fatta e' un en passant
 			Engine::engineData.m_enPassantSquare = 64;
 
 			if (pieceColorStart == nBlack) { //se il pezzo che si è mosso è nero, il pezzo da rimuovere risiederà nella riga sopra rispetto alla casella di arrivo del pedone che si è mosso
-				m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare + 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
-				m_bitBoards[!pieceColorStart] = m_bitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare + 8));
+				m_positionBitBoards[bitboardIndexStart] = m_positionBitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare + 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
+				m_positionBitBoards[!pieceColorStart] = m_positionBitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare + 8));
 			}
 			else {
-				m_bitBoards[bitboardIndexStart] = m_bitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare - 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
-				m_bitBoards[!pieceColorStart] = m_bitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare - 8));
+				m_positionBitBoards[bitboardIndexStart] = m_positionBitBoards[bitboardIndexStart] ^ ((uint64_t)1 << (endSquare - 8)); //tolgo il pedone avversario dalla casella che ha subito un en passant
+				m_positionBitBoards[!pieceColorStart] = m_positionBitBoards[!pieceColorStart] ^ ((uint64_t)1 << (endSquare - 8));
 			}
 		}
 		else if (bitboardIndexStart == nKings) {
@@ -151,20 +156,20 @@ void Board::makeMove(const uint32_t& move) {
 			}
 
 			if (startSquare == 4 && endSquare == 6) { //ovvero se la mossa e' un arrocco corto per il bianco
-				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
-				m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
+				m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
+				m_positionBitBoards[nWhite] = (m_positionBitBoards[nWhite] ^ ((uint64_t)1 << 7)) | ((uint64_t)1 << 5);
 			}
 			else if (startSquare == 4 && endSquare == 2) { //ovvero se la mossa e' un arrocco lungo per il bianco
-				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
-				m_bitBoards[nWhite] = (m_bitBoards[nWhite] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
+				m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
+				m_positionBitBoards[nWhite] = (m_positionBitBoards[nWhite] ^ ((uint64_t)1 << 0)) | ((uint64_t)1 << 3);
 			}
 			else if (startSquare == 60 && endSquare == 62) { //se la mossa e' un arrocco corto per il nero
-				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
-				m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
+				m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
+				m_positionBitBoards[nBlack] = (m_positionBitBoards[nBlack] ^ ((uint64_t)1 << 63)) | ((uint64_t)1 << 61);
 			}
 			else if (startSquare == 60 && endSquare == 58) { //se la mossa e' un arrocco lungo per il nero
-				m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
-				m_bitBoards[nBlack] = (m_bitBoards[nBlack] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
+				m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
+				m_positionBitBoards[nBlack] = (m_positionBitBoards[nBlack] ^ ((uint64_t)1 << 56)) | ((uint64_t)1 << 59);
 
 			}
 		}
@@ -212,7 +217,7 @@ void Board::makeMove(const uint32_t& move) {
 		}
 	}
 
-	m_previousPositionCharacteristics.push(previousPositionCharacteristics);
+	(*m_previousPositionCharacteristics).push(previousPositionCharacteristics);
 
 	Engine::engineData.m_isWhite = !Engine::engineData.m_isWhite;
 	//std::cout << "Deve giocare il bianco: " << Engine::engineData.m_isWhite << std::endl;
@@ -230,81 +235,81 @@ void Board::setPosition(std::string fenstring) {
 	uint32_t previousPositionInfo = 0;
 
 	for (int i = 0; i < nBitboards; i++) { //prima di impostare ogni posizione è necessario pulire tutte le bitboard, in quanto se ciò non viene fatto la posizione attuale verrà "sovrapposta" alla posizione precedente
-		m_bitBoards[i] = 0;
+		m_positionBitBoards[i] = 0;
 	}
 
 	for (int i = 0; i < fenSplit[0].size(); i++, column++) {
 
 		switch (fenSplit[0][i]) {
 		case 'r': { //è una torre nera
-			m_bitBoards[nRooks] = (((m_bitBoards[nRooks] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nRooks];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nRooks] = (((m_positionBitBoards[nRooks] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nRooks];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'n': { //è un cavallo nero
-			m_bitBoards[nKnights] = (((m_bitBoards[nKnights] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nKnights];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nKnights] = (((m_positionBitBoards[nKnights] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nKnights];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'b': { //è un alfiere nero
-			m_bitBoards[nBishops] = (((m_bitBoards[nBishops] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBishops];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nBishops] = (((m_positionBitBoards[nBishops] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBishops];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'q': { //è una regina nera
-			m_bitBoards[nQueens] = (((m_bitBoards[nQueens] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nQueens];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nQueens] = (((m_positionBitBoards[nQueens] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nQueens];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'k': { //è un re nero
-			m_bitBoards[nKings] = (((m_bitBoards[nKings] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nKings];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nKings] = (((m_positionBitBoards[nKings] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nKings];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'p': { //è un pedone nero
-			m_bitBoards[nPawns] = (((m_bitBoards[nPawns] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nPawns];
-			m_bitBoards[nBlack] = (((m_bitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBlack];
+			m_positionBitBoards[nPawns] = (((m_positionBitBoards[nPawns] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nPawns];
+			m_positionBitBoards[nBlack] = (((m_positionBitBoards[nBlack] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBlack];
 			break;
 		}
 
 		case 'R': { //è una torre bianca
-			m_bitBoards[nRooks] = (((m_bitBoards[nRooks] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nRooks];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nRooks] = (((m_positionBitBoards[nRooks] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nRooks];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
 		case 'N': { //è un cavallo bianco
-			m_bitBoards[nKnights] = (((m_bitBoards[nKnights] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nKnights];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nKnights] = (((m_positionBitBoards[nKnights] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nKnights];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
 		case 'B': { //è un alfiere bianco
-			m_bitBoards[nBishops] = (((m_bitBoards[nBishops] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nBishops];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nBishops] = (((m_positionBitBoards[nBishops] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nBishops];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
 		case 'Q': { //è una regina bianca
-			m_bitBoards[nQueens] = (((m_bitBoards[nQueens] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nQueens];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nQueens] = (((m_positionBitBoards[nQueens] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nQueens];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
 		case 'K': { //è il re bianco
-			m_bitBoards[nKings] = (((m_bitBoards[nKings] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nKings];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nKings] = (((m_positionBitBoards[nKings] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nKings];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
 		case 'P': { //è il pedone bianco
-			m_bitBoards[nPawns] = (((m_bitBoards[nPawns] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nPawns];
-			m_bitBoards[nWhite] = (((m_bitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_bitBoards[nWhite];
+			m_positionBitBoards[nPawns] = (((m_positionBitBoards[nPawns] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nPawns];
+			m_positionBitBoards[nWhite] = (((m_positionBitBoards[nWhite] >> (rank * 8 + column)) | 1) << (rank * 8 + column)) | m_positionBitBoards[nWhite];
 			break;
 		}
 
@@ -392,7 +397,7 @@ void Board::setPosition(std::string fenstring) {
 	}
 	
 
-	m_previousPositionCharacteristics.push(previousPositionInfo);
+	(*m_previousPositionCharacteristics).push(previousPositionInfo);
 }
 
 bool Board::isValidMove(std::string move) {
@@ -412,7 +417,7 @@ std::shared_ptr<uint64_t[]> Board::getBitBoards() {
 	std::shared_ptr<uint64_t[]> bitBoards(new uint64_t[nBitboards]); //è uno smart pointer, per cui non è necessario chiamare delete per liberare la memoria usata
 
 	for (int i = 0; i < nBitboards; i++) {
-		bitBoards[i] = m_bitBoards[i];
+		bitBoards[i] = m_positionBitBoards[i];
 	}
 
 	return bitBoards;
@@ -422,22 +427,22 @@ uint64_t Board::allPiecesBitboard() {
 	uint64_t out = 0;
 
 	for (int i = 0; i < 2; i++) {
-		out = out | m_bitBoards[i];
+		out = out | m_positionBitBoards[i];
 	}
 
 	return out;
 }
 
 void Board::unmakeMove(const uint32_t& move) {
-	int pieceColor, pieceType;
+	int pieceColor, pieceType = -1;
 
 	int startSquare = move & moveStartSquareBitmask;
 	int endSquare = (move >> moveEndSquareOffset) & moveEndSquareBitMask;
 	int promotionPiece = (move >> movePromotionPieceOffset) & movePromotionPieceBitMask;
 
 	//recupera le informazioni relative alla posizione precedente e rimuovile dallo stack relativo
-	uint32_t previousPositionCharacteristics = m_previousPositionCharacteristics.top();
-	m_previousPositionCharacteristics.pop();
+	uint32_t previousPositionCharacteristics = (*m_previousPositionCharacteristics).top();
+	(*m_previousPositionCharacteristics).pop();
 
 	//reimposto le caratteristiche irreversibili della posizione
 	Engine::engineData.m_whiteCanCastleLong = (previousPositionCharacteristics >> whiteLongCastleRightsOffset) & whiteLongCastleRightsBitMask;
@@ -460,19 +465,24 @@ void Board::unmakeMove(const uint32_t& move) {
 
 	//identifico il tipo di pezzo che si è mosso
 	for (int i = 2; i < nBitboards; i++) {
-		if ((m_bitBoards[i] >> endSquare) & 1) {
+		if ((m_positionBitBoards[i] >> endSquare) & 1) {
 			pieceType = i;
 		}
 	}
 
+	if (pieceType == -1) {
+		BoardHelper::printBoard();
+		uciHandler::printMove(move);
+	}
+
 	//tolgo il pezzo dalla casella in cui è stato messo
-	m_bitBoards[pieceType] = m_bitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
-	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
+	m_positionBitBoards[pieceType] = m_positionBitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
+	m_positionBitBoards[pieceColor] = m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
 
 	//reinserisco un eventuale pezzo catturato durante la mossa precedente
 	if (((previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask) != 0) {
-		m_bitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_bitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
-		m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_bitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
+		m_positionBitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_positionBitBoards[(previousPositionCharacteristics >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
+		m_positionBitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_positionBitBoards[(previousPositionCharacteristics >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
 	}
 
 	if (promotionPiece != 0) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
@@ -480,35 +490,35 @@ void Board::unmakeMove(const uint32_t& move) {
 	}
 
 	//rimetto il pezzo nella casella da cui è partito
-	m_bitBoards[pieceType] = m_bitBoards[pieceType] | ((uint64_t)1 << startSquare);
-	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] | ((uint64_t)1 << startSquare);
+	m_positionBitBoards[pieceType] = m_positionBitBoards[pieceType] | ((uint64_t)1 << startSquare);
+	m_positionBitBoards[pieceColor] = m_positionBitBoards[pieceColor] | ((uint64_t)1 << startSquare);
 
 	if (pieceType == nKings) {
 		if (startSquare == 4 && endSquare == 2) { //ovvero se la mossa è un arrocco lungo per il bianco
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
 		}
 		else if (startSquare == 4 && endSquare == 6) { //ovvero se la mossa è un arrocco corto per il bianco
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
 		}
 		else if (startSquare == 60 && endSquare == 58) { //ovvero se la mossa è un arrocco lungo per il nero
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
 		}
 		else if (startSquare == 60 && endSquare == 62) { //ovvero se la mossa è un arrocco corto per il nero
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
 		}
 	}
 	else if (endSquare == Engine::engineData.m_enPassantSquare && pieceType == nPawns) { //se la mossa precedente è stata un en passant, rimetto il pedone catturato nella sua casella
 		if (pieceColor == nWhite) {
-			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8)); 
-			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
+			m_positionBitBoards[nPawns] = m_positionBitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8)); 
+			m_positionBitBoards[!pieceColor] = m_positionBitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
 		}
 		else {
-			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
-			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
+			m_positionBitBoards[nPawns] = m_positionBitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
+			m_positionBitBoards[!pieceColor] = m_positionBitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
 		}
 	}
 
@@ -766,19 +776,19 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, uint
 
 	//identifico il tipo di pezzo che si è mosso
 	for (int i = 2; i < nBitboards; i++) {
-		if ((m_bitBoards[i] >> endSquare) & 1) {
+		if ((m_positionBitBoards[i] >> endSquare) & 1) {
 			pieceType = i;
 		}
 	}
 
 	//tolgo il pezzo dalla casella in cui è stato messo
-	m_bitBoards[pieceType] = m_bitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
-	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
+	m_positionBitBoards[pieceType] = m_positionBitBoards[pieceType] ^ ((uint64_t)1 << endSquare);
+	m_positionBitBoards[pieceColor] = m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << endSquare);
 
 	//reinserisco un eventuale pezzo catturato durante la mossa precedente
 	if (((previousPositionInfo >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask) != 0) {
-		m_bitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_bitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
-		m_bitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_bitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
+		m_positionBitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_positionBitBoards[(previousPositionInfo >> prevPieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
+		m_positionBitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] = m_positionBitBoards[(previousPositionInfo >> colorOfPrevePieceOnEndSquareOffset) & prevPieceOnEndSquareBitMask] | ((uint64_t)1 << endSquare);
 	}
 
 	if (promotionPiece != -1) { //se la mossa precedente è stata una promozione, il pezzo che si è precedentemente mosso in realtà è un pedone
@@ -786,35 +796,35 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, uint
 	}
 
 	//rimetto il pezzo nella casella da cui è partito
-	m_bitBoards[pieceType] = m_bitBoards[pieceType] | ((uint64_t)1 << startSquare);
-	m_bitBoards[pieceColor] = m_bitBoards[pieceColor] | ((uint64_t)1 << startSquare);
+	m_positionBitBoards[pieceType] = m_positionBitBoards[pieceType] | ((uint64_t)1 << startSquare);
+	m_positionBitBoards[pieceColor] = m_positionBitBoards[pieceColor] | ((uint64_t)1 << startSquare);
 
 	if (pieceType == nKings) {
 		if (startSquare == 4 && endSquare == 2) { //ovvero se la mossa è un arrocco lungo per il bianco
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 3)) | 1; //tolgo la torre bianca dalla casella d1 e la rimetto nella casella a1
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 3)) | 1;
 		}
 		else if (startSquare == 4 && endSquare == 6) { //ovvero se la mossa è un arrocco corto per il bianco
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7); //tolgo la torre bianca dalla casella f1 e la rimetto nella casella h1
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 5)) | ((uint64_t)1 << 7);
 		}
 		else if (startSquare == 60 && endSquare == 58) { //ovvero se la mossa è un arrocco lungo per il nero
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56); //tolgo la torre bianca dalla casella d8 e la rimetto nella casella a8
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 59)) | ((uint64_t)1 << 56);
 		}
 		else if (startSquare == 60 && endSquare == 62) { //ovvero se la mossa è un arrocco corto per il nero
-			m_bitBoards[nRooks] = (m_bitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
-			m_bitBoards[pieceColor] = (m_bitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
+			m_positionBitBoards[nRooks] = (m_positionBitBoards[nRooks] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63); //tolgo la torre bianca dalla casella f8 e la rimetto nella casella h8
+			m_positionBitBoards[pieceColor] = (m_positionBitBoards[pieceColor] ^ ((uint64_t)1 << 61)) | ((uint64_t)1 << 63);
 		}
 	}
 	else if (endSquare == Engine::engineData.m_enPassantSquare && pieceType == nPawns) { //se la mossa precedente è stata un en passant, rimetto il pedone catturato nella sua casella
 		if (pieceColor == nWhite) {
-			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8));
-			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
+			m_positionBitBoards[nPawns] = m_positionBitBoards[nPawns] | ((uint64_t)1 << (endSquare - 8));
+			m_positionBitBoards[!pieceColor] = m_positionBitBoards[!pieceColor] | ((uint64_t)1 << (endSquare - 8));
 		}
 		else {
-			m_bitBoards[nPawns] = m_bitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
-			m_bitBoards[!pieceColor] = m_bitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
+			m_positionBitBoards[nPawns] = m_positionBitBoards[nPawns] | ((uint64_t)1 << (endSquare + 8));
+			m_positionBitBoards[!pieceColor] = m_positionBitBoards[!pieceColor] | ((uint64_t)1 << (endSquare + 8));
 		}
 	}
 
@@ -822,24 +832,15 @@ void Board::unmakeMove(int startSquare, int endSquare, char promotionPiece, uint
 }
 
 uint64_t Board::getBitboard(int bitboardIndex) {
-	return m_bitBoards[bitboardIndex];
+	return m_positionBitBoards[bitboardIndex];
 }
 
 void Board::resetPreviousPositionCharacteristics() {
-	while (!m_previousPositionCharacteristics.empty()) {
-		m_previousPositionCharacteristics.pop();
+	while (!(*m_previousPositionCharacteristics).empty()) {
+		(*m_previousPositionCharacteristics).pop();
 	}
 }
 
-Position Board::getCurrentPosition() {
-	Position position;
-
-	for (int i = 0; i < nBitboards; i++) {
-		position.bitboards[i] = m_bitBoards[i];
-	}
-
-	return position;
-}
 
 bool Board::findInconsistency(Position prevPos, Position newPos) {
 	if ((prevPos.bitboards[nWhite] | prevPos.bitboards[nBlack]) != (newPos.bitboards[nWhite] | newPos.bitboards[nBlack])) {

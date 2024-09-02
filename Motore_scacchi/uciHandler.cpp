@@ -81,7 +81,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 	else if (messageSplit[0] == "position") {
 		if (messageSplit[1] == "startpos") {
 			Board::resetBoard();
-			BoardHelper::printBoard();
+			//BoardHelper::printBoard();
 			//std::cout << "Scacchiera resettata" << std::endl;
 			if (messageSplit.size() > 2) {
 				int i;
@@ -91,7 +91,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				}
 				m_lastMove = messageSplit[i - 1];
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
-				BoardHelper::printBoard();
+				//BoardHelper::printBoard();
 
 				//std::cout << "Is white: " << Engine::engineData.m_isWhite << std::endl;
 
@@ -105,7 +105,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				position = position + " " + messageSplit[6] + " " + messageSplit[7];
 			}
 			Board::setPosition(position);
-			BoardHelper::printBoard();
+			//BoardHelper::printBoard();
 			//std::cout << "Posizione impostata: " << messageSplit.at(1) << std::endl;
 			//Engine::generateLegalMoves(Board::getCurrentPosition(), Engine::engineData.m_isWhite);
 			if (messageSplit.size() > 8 && messageSplit[8] == "moves") {
@@ -116,7 +116,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				}
 				m_lastMove = messageSplit[i - 1];
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
-				BoardHelper::printBoard();
+				//BoardHelper::printBoard();
 			}
 			else if(messageSplit.size() > 6 && messageSplit[6] == "moves") {
 				int i;
@@ -126,7 +126,7 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 				}
 				m_lastMove = messageSplit[i - 1];
 				//std::cout << "Ultima mossa: " << m_lastMove << std::endl;
-				BoardHelper::printBoard();
+				//BoardHelper::printBoard();
 			}
 		}
 
@@ -232,6 +232,95 @@ void uciHandler::handle(std::string message) { //funzione che si occupa dell'int
 
 void uciHandler::closeLog() {
 	m_Logger.closeLog();
+}
+
+void uciHandler::postInfo(int infoType[], int data[], int nInfo, int pvSize, uint32_t pv[]) {
+	std::cout << "info ";
+
+	for (int i = 0; i < nInfo; i++) {
+		switch (infoType[i]) {
+		case npsInfo: {
+			std::cout << "nps " << data[i] << " ";
+			break;
+		}
+		case pvInfo: {
+			std::cout << "pv ";
+
+			for (int j = 0; j < pvSize; j++) {
+				printMove(pv[j]);
+				std::cout << " ";
+			}
+
+			break;
+		}
+		case depthInfo: {
+			std::cout << "depth " << data[i] << " ";
+			break;
+		}
+		case nodesInfo: {
+			std::cout << "nodes " << data[i] << " ";
+			break;
+		}
+		}
+	}
+
+	std::cout << std::endl;
+}
+
+void uciHandler::postBestMove(uint32_t move) {
+	std::cout << "bestmove ";
+	printMove(move);
+	std::cout << std::endl;
+
+	std::cout << "Nodi: " << Engine::engineData.m_nodesSearched << std::endl;
+}
+
+void uciHandler::printMove(uint32_t move) {
+	int startSquare = (move >> moveStartSquareOffset) & moveStartSquareBitmask;
+	int endSquare = (move >> moveEndSquareOffset) & moveEndSquareBitMask;
+	int promotionPiece = (move >> movePromotionPieceOffset) & movePromotionPieceBitMask;
+	char startFile, startRank, endFile, endRank, promotionPieceC = 0;
+	std::string moveS = "";
+
+	startRank = (startSquare / 8);
+	startFile = startSquare - (8 * (startRank)) + 'a';
+	startRank = startRank + '1';
+
+	endRank = (endSquare / 8);
+	endFile = endSquare - (8 * (endRank)) + 'a';
+	endRank = endRank + '1';
+	
+	switch (promotionPiece) {
+	case nKnights: {
+		promotionPieceC = 'n';
+		break;
+	}
+	case nBishops: {
+		promotionPieceC = 'b';
+		break;
+	}
+	case nRooks: {
+		promotionPieceC = 'r';
+		break;
+	}
+	case nQueens: {
+		promotionPieceC = 'q';
+		break;
+	}
+	default: {
+		break;
+	}
+	}
+
+	std::cout << startFile << startRank << endFile << endRank;
+	moveS = startFile + startRank + endFile + endRank;
+
+	if (promotionPiece) {
+		std::cout << promotionPieceC;
+		moveS = moveS + promotionPieceC;
+	}
+
+	m_Logger.log("bestmove " + moveS);
 }
 
 /*

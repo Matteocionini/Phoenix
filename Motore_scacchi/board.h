@@ -66,8 +66,7 @@ public:
 	static uint64_t rookMoves(const int& startSquare, const uint64_t& blockerBitboard);
 
 	static uint64_t getBitboard(int bitboardIndex); //metodo che consente di ottenere una certa bitboard
-	static Position getCurrentPosition(); //metodo che consente di ottenere tutte le bitboard relative alla posizione attuale
-
+	
 	static void resetPreviousPositionCharacteristics();
 	
 	static bool findInconsistency(Position prevPos, Position newPos);
@@ -81,10 +80,10 @@ public:
 	static void initMagicBitboards(); //funzione, chiamata all'avvio del programma, che inizializza le magic bitboard
 
 public:
-	static std::stack<uint32_t> m_previousPositionCharacteristics; //stack contenente int da 32 bit contenente le caratteristiche irreversibili di una data posizione
+	static std::stack<uint32_t>* m_previousPositionCharacteristics; //stack contenente int da 32 bit contenente le caratteristiche irreversibili di una data posizione. E' allocato sull'heap, in quanto può raggiungere dimensioni molto importanti
+	static uint64_t m_positionBitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 
 private:
-	static uint64_t m_bitBoards[]; //insieme di bitboard che rappresentano la scacchiera interna
 	static uint64_t m_rookOccupancyBitmask[]; //array utilizzato per memorizzare le bitmask per l'hashing relativo alla tecnica delle magic bitboard
 	static uint64_t m_rookMagicNumbers[]; //array contenente i magic numbers relativi alle torri
 	static uint64_t m_bishopOccupancyBitmask[]; //array contenente le bitmask per l'hashing relativo alla tecnica delle magic bitboard
